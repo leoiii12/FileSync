@@ -48,6 +48,8 @@ namespace FileSync
             if (isEmptySrcFile)
             {
                 // src file no longer exists
+                if (!_appConfig.ShouldRemoveFileInDest) return;
+
                 DeleteFile(_dest, destFile);
 
                 _logger.Verbose($"Removed file \"{destFile}\" in \"{_dest}\"");
@@ -110,8 +112,6 @@ namespace FileSync
 
         private void DeleteFile(string dest, string destFile)
         {
-            if (!_appConfig.ShouldRemoveFileInDest) return;
-
             var destFilePath = dest + destFile;
 
             try
