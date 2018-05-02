@@ -48,7 +48,7 @@ namespace FileSync
             if (isEmptySrcFile)
             {
                 // src file no longer exists
-                if (!_appConfig.ShouldRemoveFileInDest) return;
+                if (!_appConfig.ShouldKeepRemovedFilesInDest) return;
 
                 DeleteFile(_dest, destFile);
 

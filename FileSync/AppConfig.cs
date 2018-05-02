@@ -9,11 +9,7 @@ namespace FileSync
         public IReadOnlyList<string> IgnoringFiles { get; private set; }
         public string Src { get; private set; }
         public string Dest { get; private set; }
-        public bool ShouldRemoveFileInDest { get; private set; }
-
-        public AppConfig()
-        {
-        }
+        public bool ShouldKeepRemovedFilesInDest { get; private set; }
 
         public AppConfig Initialize()
         {
@@ -26,10 +22,10 @@ namespace FileSync
             Dest = ConfigurationManager.AppSettings["APP_DEST"] ??
                    throw new Exception("App.config \"APP_DEST\" should not be null.");
 
-            var shouldRemoveFileInDestStr = ConfigurationManager.AppSettings["SHOULD_REMOVE_FILE_IN_DEST"] ??
-                                            throw new Exception("App.config \"SHOULD_REMOVE_FILE_IN_DEST\" should not be null.");
-            ShouldRemoveFileInDest = bool.Parse(shouldRemoveFileInDestStr);
-            
+            var shouldRemoveFileInDestStr = ConfigurationManager.AppSettings["SHOULD_KEEP_REMOVED_FILES_IN_DEST"] ??
+                                            throw new Exception("App.config \"SHOULD_KEEP_REMOVED_FILES_IN_DEST\" should not be null.");
+            ShouldKeepRemovedFilesInDest = bool.Parse(shouldRemoveFileInDestStr);
+
             if (Src == Dest) throw new Exception("dest should be different from src.");
 
             return this;
