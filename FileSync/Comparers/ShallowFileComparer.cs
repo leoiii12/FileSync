@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using Serilog;
 
 namespace FileSync.Comparers
 {
-    public class ShallowFileComparer : IShallowFileComparer
+    public class ShallowFileComparer : IFileComparer
     {
         private readonly ILogger _logger;
 
@@ -18,8 +17,6 @@ namespace FileSync.Comparers
         {
             var isEqualFile = true;
 
-            var sw = Stopwatch.StartNew();
-
             try
             {
                 isEqualFile = ShallowFileCompare(srcFilePath, destFilePath);
@@ -29,10 +26,6 @@ namespace FileSync.Comparers
                 _logger.Error(e.GetBaseException().ToString());
             }
 
-            sw.Stop();
-
-            if (sw.Elapsed.Milliseconds > 500) _logger.Warning($"Compute hash for \"{srcFilePath}\", elapsed = {sw.Elapsed.Milliseconds} ms.");
-
             return isEqualFile;
         }
 
@@ -41,9 +34,8 @@ namespace FileSync.Comparers
             var srcFileInfo = new FileInfo(srcFilePath);
             var destFileInfo = new FileInfo(destFilePath);
 
-            return srcFileInfo.Length == destFileInfo.Length &&
-                   srcFileInfo.LastWriteTimeUtc == destFileInfo.LastWriteTimeUtc &&
-                   srcFileInfo.CreationTimeUtc == destFileInfo.CreationTimeUtc;
+            // TODO: Check timestamp
+            return srcFileInfo.Length == destFileInfo.Length;
         }
     }
 }

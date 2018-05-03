@@ -12,15 +12,12 @@
     <PackageReference Include="System.Reactive" Version="4.0.0-preview00001" />
   </ItemGroup>
   <ItemGroup>
-    <None Remove="logs\**" />
-    <None Remove="tests\**" />
-  </ItemGroup>
-  <ItemGroup>
     <Compile Remove="logs\**" />
-    <Compile Remove="tests\**" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Remove="logs\**" />
-    <EmbeddedResource Remove="tests\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="logs" />
   </ItemGroup>
 </Project>

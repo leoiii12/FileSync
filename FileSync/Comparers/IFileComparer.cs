@@ -1,6 +1,6 @@
 ﻿namespace FileSync.Comparers
 {
-    public interface IShallowFileComparer
+    public interface IFileComparer
     {
         bool GetIsEqualFile(string srcFilePath, string destFilePath);
     }

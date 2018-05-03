@@ -6,13 +6,13 @@ using Serilog;
 
 namespace FileSync.Comparers
 {
-    public class DeepDeepFileComparer : IDeepFileComparer
+    public class DeepFileComparer : IFileComparer
     {
         private const int BufferSize = 1024 * 1024 * 10;
 
         private readonly ILogger _logger;
 
-        public DeepDeepFileComparer(ILogger logger)
+        public DeepFileComparer(ILogger logger)
         {
             _logger = logger;
         }

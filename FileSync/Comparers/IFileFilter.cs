@@ -1,9 +1,7 @@
-﻿using System.IO;
-
-namespace FileSync.Comparers
+﻿namespace FileSync.Comparers
 {
     public interface IFileFilter
     {
-        bool Filterd(FileInfo fileInfo);
+        bool Filterd(string path);
     }
 }

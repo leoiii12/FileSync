@@ -9,14 +9,16 @@ namespace FileSync.Comparers
     public class DirectoryStructureComparer : IDirectoryStructureComparer
     {
         private readonly ILogger _logger;
+        private readonly IFileFilter _fileFilter;
 
         private string[] _addingFiles;
         private string[] _files;
         private string[] _removingFiles;
 
-        public DirectoryStructureComparer(ILogger logger)
+        public DirectoryStructureComparer(ILogger logger, IFileFilter fileFilter)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _fileFilter = fileFilter;
         }
 
         public DirectoryStructureComparer Compare(string src, string dest)
@@ -40,10 +42,12 @@ namespace FileSync.Comparers
 
             var srcFiles = srcFilePaths
                 .AsParallel()
+                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .Select(sfp => Path.GetRelativePath(src, sfp))
                 .ToHashSet();
             var destFiles = destFilePaths
                 .AsParallel()
+                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .Select(sfp => Path.GetRelativePath(dest, sfp))
                 .ToHashSet();
 

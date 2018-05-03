@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FileSync.Comparers;
+using FileSync.Operations;
 using Serilog;
 
 namespace FileSync
@@ -11,25 +13,35 @@ namespace FileSync
     public class FileSynchronizer
     {
         private readonly AppConfig _appConfig;
-        private readonly IDeepFileComparer _deepFileComparer;
-        private readonly string _dest;
-        private readonly IDirectoryStructureComparer _directoryStructureComparer;
-        private readonly IFileFilter _fileFilter;
         private readonly ILogger _logger;
+        private readonly IFileFilter _fileFilter;
+        private readonly IDirectoryStructureComparer _directoryStructureComparer;
+        private readonly IFileComparer _fileComparer;
+        private readonly IFileCopier _fileCopier;
+        private readonly IFileDeleter _fileDeleter;
+        private readonly IFileMerger _fileMerger;
+
         private readonly string _src;
+        private readonly string _dest;
 
         public FileSynchronizer(
             AppConfig appConfig,
             ILogger logger,
             IFileFilter fileFilter,
             IDirectoryStructureComparer directoryStructureComparer,
-            IDeepFileComparer deepFileComparer)
+            IFileComparer fileComparer,
+            IFileCopier fileCopier,
+            IFileDeleter fileDeleter,
+            IFileMerger fileMerger)
         {
             _appConfig = appConfig ?? throw new ArgumentNullException(nameof(appConfig));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _fileFilter = fileFilter ?? throw new ArgumentNullException(nameof(fileFilter));
             _directoryStructureComparer = directoryStructureComparer ?? throw new ArgumentNullException(nameof(directoryStructureComparer));
-            _deepFileComparer = deepFileComparer ?? throw new ArgumentNullException(nameof(deepFileComparer));
+            _fileComparer = fileComparer ?? throw new ArgumentNullException(nameof(fileComparer));
+            _fileCopier = fileCopier ?? throw new ArgumentNullException(nameof(fileCopier));
+            _fileDeleter = fileDeleter ?? throw new ArgumentNullException(nameof(fileDeleter));
+            _fileMerger = fileMerger ?? throw new ArgumentNullException(nameof(fileMerger));
 
             _src = _appConfig.Src;
             _dest = _appConfig.Dest;
@@ -55,14 +67,13 @@ namespace FileSync
 
             if (isEmptySrcFile && isEmptyDestFile) return;
 
-
             if (isEmptySrcFile)
             {
                 // 1. src file no longer exists
 
-                if (_appConfig.ShouldKeepRemovedFilesInDest) return;
+                if (_appConfig.KeepRemovedFilesInDest) return;
 
-                DeleteFile(Path.Combine(_dest, destFile));
+                _fileDeleter.Delete(Path.Combine(_dest, destFile));
 
                 _logger.Verbose($"Removed file \"{destFile}\" in \"{_dest}\"");
             }
@@ -73,7 +84,7 @@ namespace FileSync
                 var srcFilePath = Path.Combine(_src, srcFile);
                 var destFilePath = Path.Combine(_dest, srcFile);
 
-                CopyFile(srcFilePath, destFilePath);
+                _fileCopier.Copy(srcFilePath, destFilePath);
 
                 _logger.Verbose($"Copied file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
             }
@@ -83,11 +94,11 @@ namespace FileSync
 
                 var srcFilePath = Path.Combine(_src, srcFile);
                 var destFilePath = Path.Combine(_dest, destFile);
-                var isEqualFile = _deepFileComparer.GetIsEqualFile(srcFilePath, destFilePath);
+                var isEqualFile = _fileComparer.GetIsEqualFile(srcFilePath, destFilePath);
 
                 if (isEqualFile) return;
 
-                MergeFile(srcFilePath, destFilePath);
+                _fileMerger.Merge(srcFilePath, destFilePath);
 
                 _logger.Verbose($"Merged file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
             }
@@ -103,97 +114,52 @@ namespace FileSync
                 IncludeSubdirectories = true
             };
 
-            var changed = Observable
-                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Changed")
-                .Select(pattern =>
+            FileSystemEventArgs Selector(EventPattern<FileSystemEventArgs> pattern)
+            {
+                var e = pattern.EventArgs;
+
+                if (_fileFilter.Filterd(e.Name)) return e;
+
+                switch (e.ChangeType)
                 {
-                    var e = pattern.EventArgs;
+                    case WatcherChangeTypes.All:
+                        break;
+                    case WatcherChangeTypes.Changed:
+                        _logger.Verbose($"Source \"{e.FullPath}\" has been changed.");
+                        break;
+                    case WatcherChangeTypes.Created:
+                        _logger.Verbose($"Source \"{e.FullPath}\" has been created.");
 
-                    _logger.Verbose($"Source {e.FullPath} has been modified.");
+                        break;
+                    case WatcherChangeTypes.Deleted:
+                        _logger.Verbose($"Source \"{e.FullPath}\" has been deleted.");
+                        break;
+                    case WatcherChangeTypes.Renamed:
+                        var renamedEventArgs = (RenamedEventArgs) e;
+                        _logger.Verbose($"Source \"{renamedEventArgs.OldFullPath}\" has been renamed to \"{e.FullPath}\".");
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
 
-                    return e;
-                });
-            var created = Observable
-                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Created")
-                .Select(pattern =>
-                {
-                    var e = pattern.EventArgs;
-
-                    _logger.Verbose($"Source {e.FullPath} has been created.");
-
-                    return e;
-                });
-            var deleted = Observable
-                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Deleted")
-                .Select(pattern =>
-                {
-                    var e = pattern.EventArgs;
-
-                    _logger.Verbose($"Source {e.FullPath} has been deleted.");
-
-                    return e;
-                });
-            var renamed = Observable
-                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Renamed")
-                .Select(pattern =>
-                {
-                    var e = (RenamedEventArgs) pattern.EventArgs;
-
-                    _logger.Verbose($"Source {e.OldFullPath} has been renamed to {e.FullPath}.");
-
-                    return e;
-                });
+                return e;
+            }
 
             var observables = new List<IObservable<FileSystemEventArgs>>
             {
-                changed,
-                created,
-                deleted,
-                renamed
+                Observable.FromEventPattern<FileSystemEventArgs>(srcWatcher, "Changed").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(srcWatcher, "Created").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(srcWatcher, "Deleted").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(srcWatcher, "Renamed").Select(Selector)
             };
 
-            observables.Merge().Throttle(TimeSpan.FromSeconds(1)).Subscribe(e => { Sync(); });
-        }
-
-        private void CopyFile(string srcFilePath, string destFilePath)
-        {
-            try
-            {
-                var directoryName = Path.GetDirectoryName(destFilePath);
-                EnsureDirectory(directoryName);
-
-                File.Copy(srcFilePath, destFilePath);
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e.GetBaseException().ToString());
-            }
-        }
-
-        private void DeleteFile(string filePath)
-        {
-            try
-            {
-                File.Delete(filePath);
-            }
-            catch (Exception e)
-            {
-                _logger.Error(e.GetBaseException().ToString());
-            }
-        }
-
-        private void MergeFile(string srcFilePath, string destFilePath)
-        {
-            DeleteFile(destFilePath);
-            CopyFile(srcFilePath, destFilePath);
-        }
-
-        private void EnsureDirectory(string directoryName)
-        {
-            if (Directory.Exists(directoryName)) return;
-
-            Directory.CreateDirectory(directoryName);
-            _logger.Verbose($"The directory name \"{directoryName}\" does not exist. Created it.");
+            observables
+                .Merge()
+                .Throttle(TimeSpan.FromSeconds(1))
+                .Subscribe(e =>
+                {
+                    if (!_fileFilter.Filterd(e.Name)) Sync();
+                });
         }
     }
 }

@@ -13,9 +13,11 @@ namespace FileSync.Comparers
             _ignoringFileNames = appConfig.IgnoringFileNames.ToHashSet();
         }
 
-        public bool Filterd(FileInfo fileInfo)
+        public bool Filterd(string path)
         {
-            return _ignoringFileNames.Contains(fileInfo.Name);
+            var fileName = Path.GetFileName(path);
+
+            return _ignoringFileNames.Contains(fileName);
         }
     }
 }
