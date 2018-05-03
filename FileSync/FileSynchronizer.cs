@@ -60,7 +60,7 @@ namespace FileSync
             {
                 // 1. src file no longer exists
 
-                if (!_appConfig.ShouldKeepRemovedFilesInDest) return;
+                if (_appConfig.ShouldKeepRemovedFilesInDest) return;
 
                 DeleteFile(Path.Combine(_dest, destFile));
 
