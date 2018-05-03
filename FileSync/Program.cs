@@ -27,8 +27,10 @@ namespace FileSync
             var builder = new ContainerBuilder();
             builder.RegisterInstance(log).As<ILogger>();
             builder.RegisterInstance(appConfig).As<AppConfig>();
+            builder.RegisterType<FileFilter>().As<IFileFilter>();
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
-            builder.RegisterType<FileComparer>().As<IFileComparer>();
+            builder.RegisterType<DeepDeepFileComparer>().As<IDeepFileComparer>();
+            builder.RegisterType<ShallowFileComparer>().As<IShallowFileComparer>();
             builder.RegisterType<FileSynchronizer>();
             Container = builder.Build();
 

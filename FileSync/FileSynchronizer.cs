@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FileSync.Comparers;
 using Serilog;
@@ -9,29 +11,37 @@ namespace FileSync
     public class FileSynchronizer
     {
         private readonly AppConfig _appConfig;
-        private readonly ILogger _logger;
-        private readonly IDirectoryStructureComparer _directoryStructureComparer;
-        private readonly IFileComparer _fileComparer;
-        private readonly string _src;
+        private readonly IDeepFileComparer _deepFileComparer;
         private readonly string _dest;
+        private readonly IDirectoryStructureComparer _directoryStructureComparer;
+        private readonly IFileFilter _fileFilter;
+        private readonly ILogger _logger;
+        private readonly string _src;
 
-        public FileSynchronizer(AppConfig appConfig, ILogger logger, IDirectoryStructureComparer directoryStructureComparer, IFileComparer fileComparer)
+        public FileSynchronizer(
+            AppConfig appConfig,
+            ILogger logger,
+            IFileFilter fileFilter,
+            IDirectoryStructureComparer directoryStructureComparer,
+            IDeepFileComparer deepFileComparer)
         {
             _appConfig = appConfig ?? throw new ArgumentNullException(nameof(appConfig));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _fileFilter = fileFilter ?? throw new ArgumentNullException(nameof(fileFilter));
             _directoryStructureComparer = directoryStructureComparer ?? throw new ArgumentNullException(nameof(directoryStructureComparer));
-            _fileComparer = fileComparer ?? throw new ArgumentNullException(nameof(fileComparer));
-            _src = appConfig.Src;
-            _dest = appConfig.Dest;
+            _deepFileComparer = deepFileComparer ?? throw new ArgumentNullException(nameof(deepFileComparer));
+
+            _src = _appConfig.Src;
+            _dest = _appConfig.Dest;
         }
 
         public void Sync()
         {
             _logger.Information("Synchronizing...");
 
-            var tuples = _directoryStructureComparer.Compare().ToTuples();
+            var tuples = _directoryStructureComparer.Compare(_src, _dest).ToTuples();
 
-            Parallel.ForEach(tuples, tuple => { SyncOnTuple(tuple); });
+            Parallel.ForEach(tuples, new ParallelOptions {MaxDegreeOfParallelism = 4}, tuple => { SyncOnTuple(tuple); });
 
             _logger.Information("Synchronized.");
         }
@@ -45,58 +55,108 @@ namespace FileSync
 
             if (isEmptySrcFile && isEmptyDestFile) return;
 
+
             if (isEmptySrcFile)
             {
-                // src file no longer exists
+                // 1. src file no longer exists
+
                 if (!_appConfig.ShouldKeepRemovedFilesInDest) return;
 
-                DeleteFile(_dest, destFile);
+                DeleteFile(Path.Combine(_dest, destFile));
 
                 _logger.Verbose($"Removed file \"{destFile}\" in \"{_dest}\"");
             }
             else if (isEmptyDestFile)
             {
-                // Dest file does not exits
-                CopyFile(_src, srcFile, _dest);
+                // 2. Dest file does not exits
+
+                var srcFilePath = Path.Combine(_src, srcFile);
+                var destFilePath = Path.Combine(_dest, srcFile);
+
+                CopyFile(srcFilePath, destFilePath);
 
                 _logger.Verbose($"Copied file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
             }
             else
             {
-                // Both src and dest files exist => Compare
-                var isEqualFile = _fileComparer.GetIsEqualFile(_src, srcFile, _dest, destFile);
+                // 3. Both src and dest files exist => Compare
+
+                var srcFilePath = Path.Combine(_src, srcFile);
+                var destFilePath = Path.Combine(_dest, destFile);
+                var isEqualFile = _deepFileComparer.GetIsEqualFile(srcFilePath, destFilePath);
 
                 if (isEqualFile) return;
 
-                DeleteFile(_dest, destFile);
-                CopyFile(_src, srcFile, _dest);
+                MergeFile(srcFilePath, destFilePath);
 
-                _logger.Verbose($"Detected file \"{destFile}\" changes. Recopied from \"{_src}\" to \"{_dest}\".");
+                _logger.Verbose($"Merged file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
             }
         }
 
         public void WatchAndSync()
         {
-            var srcWatcher = new FileSystemWatcher();
-            srcWatcher.Path = _src;
-            srcWatcher.Filter = "*.*";
-            srcWatcher.NotifyFilter = NotifyFilters.LastWrite;
-            srcWatcher.Changed += OnChanged;
-            srcWatcher.EnableRaisingEvents = true;
+            var srcWatcher = new FileSystemWatcher
+            {
+                Path = _src,
+                Filter = "*.*",
+                EnableRaisingEvents = true,
+                IncludeSubdirectories = true
+            };
+
+            var changed = Observable
+                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Changed")
+                .Select(pattern =>
+                {
+                    var e = pattern.EventArgs;
+
+                    _logger.Verbose($"Source {e.FullPath} has been modified.");
+
+                    return e;
+                });
+            var created = Observable
+                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Created")
+                .Select(pattern =>
+                {
+                    var e = pattern.EventArgs;
+
+                    _logger.Verbose($"Source {e.FullPath} has been created.");
+
+                    return e;
+                });
+            var deleted = Observable
+                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Deleted")
+                .Select(pattern =>
+                {
+                    var e = pattern.EventArgs;
+
+                    _logger.Verbose($"Source {e.FullPath} has been deleted.");
+
+                    return e;
+                });
+            var renamed = Observable
+                .FromEventPattern<FileSystemEventArgs>(srcWatcher, "Renamed")
+                .Select(pattern =>
+                {
+                    var e = (RenamedEventArgs) pattern.EventArgs;
+
+                    _logger.Verbose($"Source {e.OldFullPath} has been renamed to {e.FullPath}.");
+
+                    return e;
+                });
+
+            var observables = new List<IObservable<FileSystemEventArgs>>
+            {
+                changed,
+                created,
+                deleted,
+                renamed
+            };
+
+            observables.Merge().Throttle(TimeSpan.FromSeconds(1)).Subscribe(e => { Sync(); });
         }
 
-        private void OnChanged(object source, FileSystemEventArgs e)
+        private void CopyFile(string srcFilePath, string destFilePath)
         {
-            _logger.Information($"Detected file \"{e.FullPath}\" changes.");
-
-            Sync();
-        }
-
-        private void CopyFile(string src, string srcFile, string dest)
-        {
-            var srcFilePath = src + srcFile;
-            var destFilePath = dest + srcFile;
-
             try
             {
                 var directoryName = Path.GetDirectoryName(destFilePath);
@@ -110,18 +170,22 @@ namespace FileSync
             }
         }
 
-        private void DeleteFile(string dest, string destFile)
+        private void DeleteFile(string filePath)
         {
-            var destFilePath = dest + destFile;
-
             try
             {
-                File.Delete(destFilePath);
+                File.Delete(filePath);
             }
             catch (Exception e)
             {
                 _logger.Error(e.GetBaseException().ToString());
             }
+        }
+
+        private void MergeFile(string srcFilePath, string destFilePath)
+        {
+            DeleteFile(destFilePath);
+            CopyFile(srcFilePath, destFilePath);
         }
 
         private void EnsureDirectory(string directoryName)

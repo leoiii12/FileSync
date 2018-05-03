@@ -8,25 +8,19 @@ namespace FileSync.Comparers
 {
     public class DirectoryStructureComparer : IDirectoryStructureComparer
     {
-        private readonly AppConfig _appConfig;
         private readonly ILogger _logger;
 
         private string[] _addingFiles;
-        private string[] _removingFiles;
         private string[] _files;
+        private string[] _removingFiles;
 
-        public DirectoryStructureComparer(AppConfig appConfig, ILogger logger)
+        public DirectoryStructureComparer(ILogger logger)
         {
-            _appConfig = appConfig ?? throw new ArgumentNullException(nameof(appConfig));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public DirectoryStructureComparer Compare()
+        public DirectoryStructureComparer Compare(string src, string dest)
         {
-            var ignoringFiles = _appConfig.IgnoringFiles;
-            var src = _appConfig.Src;
-            var dest = _appConfig.Dest;
-
             _logger.Verbose("Computing the directory structure...");
 
             if (!Directory.Exists(src))
@@ -46,13 +40,11 @@ namespace FileSync.Comparers
 
             var srcFiles = srcFilePaths
                 .AsParallel()
-                .Where(sfp => ignoringFiles.All(inf => !sfp.EndsWith(inf)))
-                .Select(sfp => sfp.Replace(src, string.Empty))
+                .Select(sfp => Path.GetRelativePath(src, sfp))
                 .ToHashSet();
             var destFiles = destFilePaths
                 .AsParallel()
-                .Where(sfp => ignoringFiles.All(inf => !sfp.EndsWith(inf)))
-                .Select(sfp => sfp.Replace(dest, string.Empty))
+                .Select(sfp => Path.GetRelativePath(dest, sfp))
                 .ToHashSet();
 
             _logger.Verbose("Computed the directory structure...");
@@ -68,10 +60,7 @@ namespace FileSync.Comparers
 
         public IEnumerable<(string, string)> ToTuples()
         {
-            if (_addingFiles == null || _files == null || _removingFiles == null)
-            {
-                Compare();
-            }
+            if (_addingFiles == null || _files == null || _removingFiles == null) throw new Exception($"Please ${nameof(Compare)} first.");
 
             var tuples = new List<(string, string)>();
             tuples.AddRange(_addingFiles.Select(af => (af, string.Empty)));

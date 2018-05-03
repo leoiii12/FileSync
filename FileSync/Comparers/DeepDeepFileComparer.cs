@@ -6,18 +6,18 @@ using Serilog;
 
 namespace FileSync.Comparers
 {
-    public class FileComparer : IFileComparer
+    public class DeepDeepFileComparer : IDeepFileComparer
     {
         private const int BufferSize = 1024 * 1024 * 10;
 
         private readonly ILogger _logger;
 
-        public FileComparer(ILogger logger)
+        public DeepDeepFileComparer(ILogger logger)
         {
             _logger = logger;
         }
 
-        public bool GetIsEqualFile(string src, string srcFile, string dest, string destFile)
+        public bool GetIsEqualFile(string srcFilePath, string destFilePath)
         {
             var isEqualFile = true;
 
@@ -25,14 +25,7 @@ namespace FileSync.Comparers
 
             try
             {
-                var srcFilePath = src + srcFile;
-                var destFilePath = dest + destFile;
-
-                using (var srcFileStream = new FileStream(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
-                using (var destFileStream = new FileStream(destFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
-                {
-                    isEqualFile = srcFileStream.Length == destFileStream.Length && IncrementallyCompare(srcFileStream, destFileStream);
-                }
+                isEqualFile = DeepFileCompare(srcFilePath, destFilePath);
             }
             catch (Exception e)
             {
@@ -41,9 +34,22 @@ namespace FileSync.Comparers
 
             sw.Stop();
 
-            if (sw.Elapsed.Milliseconds > 500) _logger.Warning($"Compute hash for \"{srcFile}\", elapsed = {sw.Elapsed.Milliseconds} ms.");
+            if (sw.Elapsed.Milliseconds > 500) _logger.Warning($"Compute hash for \"{srcFilePath}\", elapsed = {sw.Elapsed.Milliseconds} ms.");
 
             return isEqualFile;
+        }
+
+        private static bool DeepFileCompare(string srcFilePath, string destFilePath)
+        {
+            bool isEqual;
+
+            using (var srcFileStream = new FileStream(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
+            using (var destFileStream = new FileStream(destFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
+            {
+                isEqual = srcFileStream.Length == destFileStream.Length && IncrementallyCompare(srcFileStream, destFileStream);
+            }
+
+            return isEqual;
         }
 
         private static bool IncrementallyCompare(FileStream fs1, FileStream fs2)
