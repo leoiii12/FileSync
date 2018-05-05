@@ -1,4 +1,4 @@
-﻿namespace FileSync.Comparers
+﻿namespace FileSync.Filters
 {
     public interface IFileFilter
     {

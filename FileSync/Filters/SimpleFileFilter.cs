@@ -2,13 +2,13 @@
 using System.IO;
 using System.Linq;
 
-namespace FileSync.Comparers
+namespace FileSync.Filters
 {
-    public class FileFilter : IFileFilter
+    public class SimpleFileFilter : IFileFilter
     {
         private readonly HashSet<string> _ignoringFileNames;
 
-        public FileFilter(AppConfig appConfig)
+        public SimpleFileFilter(AppConfig appConfig)
         {
             _ignoringFileNames = appConfig.IgnoringFileNames.ToHashSet();
         }

@@ -5,6 +5,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FileSync.Comparers;
+using FileSync.Filters;
 using FileSync.Operations;
 using Serilog;
 

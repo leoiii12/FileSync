@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
 using FileSync.Comparers;
+using FileSync.Filters;
 using FileSync.Operations;
 using Serilog;
 using Serilog.Events;
@@ -55,7 +56,7 @@ namespace FileSync
 
             builder.RegisterInstance(log).As<ILogger>();
 
-            builder.RegisterType<FileFilter>().As<IFileFilter>();
+            builder.RegisterType<SimpleFileFilter>().As<IFileFilter>();
 
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
 

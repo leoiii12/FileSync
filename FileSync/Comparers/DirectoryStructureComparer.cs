@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using FileSync.Filters;
 using Serilog;
 
 namespace FileSync.Comparers

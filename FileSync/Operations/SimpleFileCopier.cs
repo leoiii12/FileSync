@@ -27,6 +27,9 @@ namespace FileSync.Operations
 
                 var tempFilePath = destFilePath + TempExtenstion;
 
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
+
                 File.Copy(srcFilePath, tempFilePath);
                 File.Move(tempFilePath, destFilePath);
             }
