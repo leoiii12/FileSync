@@ -68,8 +68,7 @@ namespace FileSync
             builder.RegisterInstance(log).As<ILogger>();
 
             builder.RegisterType<GitignoreParser>();
-
-            builder.RegisterType<GitignoreFileFilter>().UsingConstructor(typeof(IAppConfig), typeof(GitignoreParser)).As<IFileFilter>();
+            builder.RegisterType<GitignoreFileFilter>().As<IFileFilter>();
 
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
 

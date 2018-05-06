@@ -35,13 +35,13 @@ namespace FileSync.Comparers
 
             var srcFiles = srcFilePaths
                 .AsParallel()
-                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .Select(sfp => Path.GetRelativePath(src, sfp))
+                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .ToHashSet();
             var destFiles = destFilePaths
                 .AsParallel()
-                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .Select(sfp => Path.GetRelativePath(dest, sfp))
+                .Where(sfp => !_fileFilter.Filterd(sfp))
                 .ToHashSet();
 
             _logger.Verbose("Computed the directory structure...");

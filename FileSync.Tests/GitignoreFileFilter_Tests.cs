@@ -1,19 +1,26 @@
 ﻿using System.Collections.Generic;
 using FileSync.Filters;
 using Serilog;
-using Serilog.Core;
 using Xunit;
 
 namespace FileSync.Tests
 {
+    internal class AppConfig : IAppConfig
+    {
+        public string Src { get; } = "";
+        public string Dest { get; } = "";
+        public string Log { get; } = "";
+        public bool UseDeepFileComparer { get; } = false;
+        public bool KeepRemovedFilesInDest { get; } = false;
+    }
+
     public class GitignoreFileFilter_Tests
     {
-        private readonly Logger _logger;
         private readonly GitignoreFileFilter _gitignoreFileFilter;
 
         public GitignoreFileFilter_Tests()
         {
-            _logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
+            var logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
 
             var patterns = new List<string>
             {
@@ -49,7 +56,8 @@ namespace FileSync.Tests
                 "!/htmldoc/*.html"
             };
 
-            _gitignoreFileFilter = new GitignoreFileFilter(patterns, new GitignoreParser(_logger));
+            _gitignoreFileFilter = new GitignoreFileFilter(new AppConfig(), new GitignoreParser(logger));
+            _gitignoreFileFilter.SetPatterns(patterns);
         }
 
         public static IEnumerable<object[]> Data()

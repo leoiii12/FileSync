@@ -15,6 +15,7 @@ namespace FileSync.Filters
 
         private readonly ILogger _logger;
 
+        // TODO
         private readonly List<(string, string)> _availableUserEscapedCharacters = new List<(string, string)>
         {
             (@"\ ", "<<<SPACE>>>"),
