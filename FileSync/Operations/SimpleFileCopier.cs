@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using FileSync.Comparers;
 using JetBrains.Annotations;
 using Serilog;
 
@@ -10,10 +11,12 @@ namespace FileSync.Operations
         private const string TempExtenstion = ".fstmp"; // File Sync TeMP
 
         private readonly ILogger _logger;
+        private readonly IFileComparer _fileComparer;
 
-        public SimpleFileCopier([NotNull] ILogger logger)
+        public SimpleFileCopier([NotNull] ILogger logger, [NotNull] IFileComparer fileComparer)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _fileComparer = fileComparer ?? throw new ArgumentNullException(nameof(fileComparer));
         }
 
         public void Copy(string srcFilePath, string destFilePath)
@@ -35,6 +38,8 @@ namespace FileSync.Operations
 
                 File.Copy(srcFilePath, tempFilePath);
                 File.Move(tempFilePath, destFilePath);
+
+                _fileComparer.GetIsEqualFile(srcFilePath, destFilePath);
             }
             catch (Exception e)
             {
