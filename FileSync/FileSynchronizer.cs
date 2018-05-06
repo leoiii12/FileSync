@@ -60,7 +60,7 @@ namespace FileSync
 
             try
             {
-                Parallel.ForEach(pairs, new ParallelOptions {MaxDegreeOfParallelism = 4}, SyncOnTuple);
+                Parallel.ForEach(pairs, new ParallelOptions {MaxDegreeOfParallelism = 4}, SyncOnPair);
             }
             catch (AggregateException e)
             {
@@ -73,7 +73,7 @@ namespace FileSync
             _logger.Verbose("Not synced: " + string.Join(',', notYetSyncedFiles.Select(p => p.SourcePath)));
         }
 
-        private void SyncOnTuple(Pair pair)
+        private void SyncOnPair(Pair pair)
         {
             var srcPath = pair.SourcePath;
             var destPath = pair.DestinationPath;
