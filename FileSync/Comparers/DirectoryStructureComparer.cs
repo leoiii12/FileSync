@@ -3,40 +3,32 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using FileSync.Filters;
+using JetBrains.Annotations;
 using Serilog;
 
 namespace FileSync.Comparers
 {
     public class DirectoryStructureComparer : IDirectoryStructureComparer
     {
-        private readonly ILogger _logger;
         private readonly IFileFilter _fileFilter;
+        private readonly ILogger _logger;
 
         private string[] _addingFiles;
         private string[] _files;
         private string[] _removingFiles;
 
-        public DirectoryStructureComparer(ILogger logger, IFileFilter fileFilter)
+        public DirectoryStructureComparer([NotNull] ILogger logger, [NotNull] IFileFilter fileFilter)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _fileFilter = fileFilter;
+            _fileFilter = fileFilter ?? throw new ArgumentNullException(nameof(fileFilter));
         }
 
         public DirectoryStructureComparer Compare(string src, string dest)
         {
+            if (src == null) throw new ArgumentNullException(nameof(src));
+            if (dest == null) throw new ArgumentNullException(nameof(dest));
+
             _logger.Verbose("Computing the directory structure...");
-
-            if (!Directory.Exists(src))
-            {
-                Directory.CreateDirectory(src);
-                _logger.Verbose($"src \"{src}\" does not exist. Created.");
-            }
-
-            if (!Directory.Exists(dest))
-            {
-                Directory.CreateDirectory(dest);
-                _logger.Verbose($"dest \"{dest}\" does not exist. Created.");
-            }
 
             var srcFilePaths = Directory.EnumerateFiles(src, "*.*", SearchOption.AllDirectories);
             var destFilePaths = Directory.EnumerateFiles(dest, "*.*", SearchOption.AllDirectories);

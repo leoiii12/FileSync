@@ -13,7 +13,7 @@ namespace FileSync
 {
     public class FileSynchronizer
     {
-        private readonly AppConfig _appConfig;
+        private readonly IAppConfig _appConfig;
         private readonly ILogger _logger;
         private readonly IFileFilter _fileFilter;
         private readonly IDirectoryStructureComparer _directoryStructureComparer;
@@ -26,7 +26,7 @@ namespace FileSync
         private readonly string _dest;
 
         public FileSynchronizer(
-            AppConfig appConfig,
+            IAppConfig appConfig,
             ILogger logger,
             IFileFilter fileFilter,
             IDirectoryStructureComparer directoryStructureComparer,
@@ -50,7 +50,11 @@ namespace FileSync
 
         public void Sync()
         {
-            _logger.Information("Synchronizing...");
+            // TODO : Should tolerate the error
+            if (!Directory.Exists(_src)) throw new Exception($"{_src} not found. Terminated.");
+            if (!Directory.Exists(_dest)) throw new Exception($"{_dest} not found. Terminated.");
+
+            _logger.Information($"Synchronizing from {_src} to {_dest}...");
 
             var tuples = _directoryStructureComparer.Compare(_src, _dest).ToTuples();
 
@@ -154,9 +158,10 @@ namespace FileSync
                 Observable.FromEventPattern<FileSystemEventArgs>(srcWatcher, "Renamed").Select(Selector)
             };
 
+            // Sync when no changes for 10 seconds
             observables
                 .Merge()
-                .Throttle(TimeSpan.FromSeconds(1))
+                .Throttle(TimeSpan.FromSeconds(10))
                 .Subscribe(e =>
                 {
                     if (!_fileFilter.Filterd(e.Name)) Sync();

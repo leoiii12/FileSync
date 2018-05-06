@@ -18,7 +18,9 @@ namespace FileSync
 
         private static void Main(string[] args)
         {
-            Initialize();
+            var appConfig = new AppConfig().Initialize();
+
+            Initialize(appConfig);
 
             Console.CancelKeyPress += (sender, eArgs) =>
             {
@@ -28,35 +30,46 @@ namespace FileSync
 
             Task.Run(() =>
             {
-                using (var scope = Container.BeginLifetimeScope())
+                try
                 {
-                    var fileSynchronizer = scope.Resolve<FileSynchronizer>();
+                    FileSynchronizer fileSynchronizer;
+
+                    using (var scope = Container.BeginLifetimeScope())
+                    {
+                        fileSynchronizer = scope.Resolve<FileSynchronizer>();
+                    }
 
                     fileSynchronizer.Sync();
                     fileSynchronizer.WatchAndSync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.GetBaseException());
+                    
+                    Environment.Exit(-1);
                 }
             });
 
             QuitEvent.WaitOne();
         }
 
-        private static void Initialize()
+        private static void Initialize(IAppConfig appConfig)
         {
-            var appConfig = new AppConfig().Initialize();
-
             var log = new LoggerConfiguration()
                 .MinimumLevel.Verbose()
-                .WriteTo.File("logs/logs.txt")
+                .WriteTo.File(appConfig.Log)
                 .WriteTo.Console(LogEventLevel.Information)
                 .CreateLogger();
 
             var builder = new ContainerBuilder();
 
-            builder.RegisterInstance(appConfig).As<AppConfig>();
+            builder.RegisterInstance(appConfig).As<IAppConfig>();
 
             builder.RegisterInstance(log).As<ILogger>();
 
-            builder.RegisterType<SimpleFileFilter>().As<IFileFilter>();
+            builder.RegisterType<GitignoreParser>();
+
+            builder.RegisterType<GitignoreFileFilter>().UsingConstructor(typeof(IAppConfig), typeof(GitignoreParser)).As<IFileFilter>();
 
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
 

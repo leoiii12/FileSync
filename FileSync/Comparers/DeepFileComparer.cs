@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using JetBrains.Annotations;
 using Serilog;
 
 namespace FileSync.Comparers
@@ -12,13 +13,16 @@ namespace FileSync.Comparers
 
         private readonly ILogger _logger;
 
-        public DeepFileComparer(ILogger logger)
+        public DeepFileComparer([NotNull] ILogger logger)
         {
-            _logger = logger;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public bool GetIsEqualFile(string srcFilePath, string destFilePath)
         {
+            if (srcFilePath == null) throw new ArgumentNullException(nameof(srcFilePath));
+            if (destFilePath == null) throw new ArgumentNullException(nameof(destFilePath));
+
             var isEqualFile = true;
 
             var sw = Stopwatch.StartNew();

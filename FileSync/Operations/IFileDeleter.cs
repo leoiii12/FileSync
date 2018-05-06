@@ -1,7 +1,9 @@
-﻿namespace FileSync.Operations
+﻿using JetBrains.Annotations;
+
+namespace FileSync.Operations
 {
     public interface IFileDeleter
     {
-        void Delete(string filePath);
+        void Delete([NotNull] string filePath);
     }
 }

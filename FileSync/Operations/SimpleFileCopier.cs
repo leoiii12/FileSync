@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using JetBrains.Annotations;
 using Serilog;
 
 namespace FileSync.Operations
@@ -10,15 +11,17 @@ namespace FileSync.Operations
 
         private readonly ILogger _logger;
 
-        public SimpleFileCopier(ILogger logger)
+        public SimpleFileCopier([NotNull] ILogger logger)
         {
-            _logger = logger;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public void Copy(string srcFilePath, string destFilePath)
         {
             if (srcFilePath == null) throw new ArgumentNullException(nameof(srcFilePath));
             if (destFilePath == null) throw new ArgumentNullException(nameof(destFilePath));
+
+            if (srcFilePath.EndsWith(TempExtenstion)) return;
 
             try
             {

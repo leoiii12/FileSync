@@ -1,16 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 
 namespace FileSync
 {
-    public class AppConfig
+    public class AppConfig : IAppConfig
     {
         public string Src { get; private set; }
         public string Dest { get; private set; }
+        public string Log { get; private set; }
 
-        public IReadOnlyList<string> IgnoringFileNames { get; private set; }
         public bool UseDeepFileComparer { get; private set; }
 
         public bool KeepRemovedFilesInDest { get; private set; }
@@ -28,13 +27,13 @@ namespace FileSync
         {
             Src = Path.GetFullPath(Get("APP_SRC"));
             Dest = Path.GetFullPath(Get("APP_DEST"));
+            Log = Get("APP_LOG");
 
             if (Src == Dest) throw new Exception("dest should be different from src.");
         }
 
         private void InitializeComparerConfigurations()
         {
-            IgnoringFileNames = Get("IGNORING_FILE_NAMES").Split(';');
             UseDeepFileComparer = bool.Parse(Get("USE_DEEP_FILE_COMPARER"));
         }
 

@@ -1,7 +1,9 @@
-﻿namespace FileSync.Operations
+﻿using JetBrains.Annotations;
+
+namespace FileSync.Operations
 {
     public interface IFileMerger
     {
-        void Merge(string srcFilePath, string destFilePath);
+        void Merge([NotNull] string srcFilePath, [NotNull] string destFilePath);
     }
 }

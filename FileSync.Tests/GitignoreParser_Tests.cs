@@ -1,69 +1,121 @@
 using FileSync.Filters;
+using Serilog;
+using Serilog.Core;
 using Xunit;
 
 namespace FileSync.Tests
 {
+    // RegEx Reference: http://www.javascriptkit.com/javatutors/redev2.shtml
     public class GitignoreParser_Tests
     {
-        [Fact]
-        public void Convert_Test()
+        private readonly Logger _logger;
+
+        public GitignoreParser_Tests()
         {
-            // RegEx Reference: http://www.javascriptkit.com/javatutors/redev2.shtml
+            _logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
+        }
 
-            var gitignoreParser = new GitignoreParser();
+        [Fact]
+        public void Convert_Test_1()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
 
-            Assert.Null(gitignoreParser.ConvertToRegEx("/"));
-            Assert.Null(gitignoreParser.ConvertToRegEx("*"));
-            Assert.Null(gitignoreParser.ConvertToRegEx("**"));
+            // Assert.Equal(@"^(?:[\S\s]+\/)*hide(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("**/hide/**"));
+            Assert.Equal(@"^git-sample-3\/foo\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*$", gitignoreParser.ConvertToRegexString("/git-sample-3/foo/*"));
+
+            Assert.Null(gitignoreParser.ConvertToRegexString("/"));
+            Assert.Null(gitignoreParser.ConvertToRegexString("*"));
+            Assert.Null(gitignoreParser.ConvertToRegexString("**"));
 
             // RULE : A blank line matches no files.
-            Assert.Null(gitignoreParser.ConvertToRegEx("     "));
+            Assert.Null(gitignoreParser.ConvertToRegexString("     "));
 
-            // RULE : A line starting with # serves as a comment.
-            Assert.Null(gitignoreParser.ConvertToRegEx("# User-specific files"));
-            Assert.Null(gitignoreParser.ConvertToRegEx(" # User-specific files"));
-            Assert.Null(gitignoreParser.ConvertToRegEx(" #      User-specific files "));
+            // RULE : "#line" A line starting with # serves as a comment.
+            Assert.Null(gitignoreParser.ConvertToRegexString("# User-specific files"));
+            Assert.Null(gitignoreParser.ConvertToRegexString(" # User-specific files"));
+            Assert.Null(gitignoreParser.ConvertToRegexString(" #      User-specific files "));
+        }
+
+        [Fact]
+        public void Convert_Test_2()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
 
             // RULE : "?"
-            Assert.Equal(@"(^.|[\S\s]*\/.)$", gitignoreParser.ConvertToRegEx("?"));
-            Assert.Equal(@"(^.\.json|[\S\s]*\/.\.json)$", gitignoreParser.ConvertToRegEx("?.json"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*logs(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("logs"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*.(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("?"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*.\.json(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("?.json"));
 
             // RULE : "**"
-            // These are not the best representations but do the same jobs
-            Assert.Equal(@"(^[\S\s]+\/Properties\/launchSettings\.json|[\S\s]*\/[\S\s]+\/Properties\/launchSettings\.json)$", gitignoreParser.ConvertToRegEx("**/Properties/launchSettings.json"));
-            Assert.Equal(@"(^Properties\/[\S\s]+\/launchSettings\.json|[\S\s]*\/Properties\/[\S\s]+\/launchSettings\.json)$", gitignoreParser.ConvertToRegEx("Properties/**/launchSettings.json"));
-            Assert.Equal(@"(^Properties\/launchSettings\/[\S\s]+|[\S\s]*\/Properties\/launchSettings\/[\S\s]+)$", gitignoreParser.ConvertToRegEx("Properties/launchSettings/**"));
-            Assert.Equal(@"(^Properties\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/launchSettings\/[\S\s]+|[\S\s]*\/Properties\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/launchSettings\/[\S\s]+)$",
-                gitignoreParser.ConvertToRegEx("Properties/*/launchSettings/**"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*logs\/debug\.log(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("**/logs/debug.log"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*(?:Properties\/launchSettings\.json|Properties\/[\S\s]+\/launchSettings\.json)(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("Properties/**/launchSettings.json"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*Properties\/launchSettings(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("Properties/launchSettings/**"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*Properties\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/launchSettings(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("Properties/*/launchSettings/**"));
+        }
 
-            // RULE : Special case for "/" line "/"
-            Assert.Equal(@"^lib\/[\S\s]*$", gitignoreParser.ConvertToRegEx("/lib/"));
+        [Fact]
+        public void Convert_Test_3()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
 
-            // RULE : A line starting with "*" serves as directory specifier
-            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg$", gitignoreParser.ConvertToRegEx("*/*.jpg"));
-            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg$", gitignoreParser.ConvertToRegEx("*/*/*.jpg"));
+            // RULE : "*/line/*" matches folders and files which directly neigbours with the specified folder
+            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("*/*.jpg"));
+            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("*/*/*.jpg"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*[Tt]est[Rr]esult\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*$", gitignoreParser.ConvertToRegexString("[Tt]est[Rr]esult/*/*"));
 
-            // RULE : A line starting with "/" serves as root
-            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.c$", gitignoreParser.ConvertToRegEx("/*.c"));
+            // RULE : "/line" matches only Root file
+            Assert.Equal(@"^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.c(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("/*.c"));
 
-            // RULE : A line ending with "/" matches with everything at the beneath
-            Assert.Equal(@"(^lib\/[\S\s]*|[\S\s]*\/lib\/[\S\s]*)$", gitignoreParser.ConvertToRegEx("lib/"));
-            Assert.Equal(@"(^[Dd]ebug\/[\S\s]*|[\S\s]*\/[Dd]ebug\/[\S\s]*)$", gitignoreParser.ConvertToRegEx("[Dd]ebug/"));
-            Assert.Equal(@"(^[Bb]in\/[\S\s]*|[\S\s]*\/[Bb]in\/[\S\s]*)$", gitignoreParser.ConvertToRegEx("[Bb]in/"));
-            Assert.Equal(@"(^\.vs\/[\S\s]*|[\S\s]*\/\.vs\/[\S\s]*)$", gitignoreParser.ConvertToRegEx(".vs/"));
+            // RULE : "line/" matches only Directory
+            Assert.Equal(@"^(?:[\S\s]+\/)*lib(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString("lib/"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*[Dd]ebug(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString("[Dd]ebug/"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*[Bb]in(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString("[Bb]in/"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*\.vs(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString(".vs/"));
 
-            // RULE : A line without starting and ending specifiers
-            Assert.Equal(@"(^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg|[\S\s]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg)$", gitignoreParser.ConvertToRegEx("*.jpg"));
-            Assert.Equal(gitignoreParser.ConvertToRegEx("*.jpg"), gitignoreParser.ConvertToRegEx(" *.jpg "));
-            Assert.Equal(@"(^[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.sln\.docstates|[\S\s]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.sln\.docstates)$", gitignoreParser.ConvertToRegEx("*.sln.docstates"));
-            Assert.Equal(@"(^abc\.jpg|[\S\s]*\/abc\.jpg)$", gitignoreParser.ConvertToRegEx("abc.jpg"));
-            Assert.Equal(@"(^\.jpg|[\S\s]*\/\.jpg)$", gitignoreParser.ConvertToRegEx(".jpg"));
-            Assert.Equal(@"(^[Bb]uild[Ll]og\.[^\f\n\r\t\v\u00A0\u2028\u2029\/]*|[\S\s]*\/[Bb]uild[Ll]og\.[^\f\n\r\t\v\u00A0\u2028\u2029\/]*)$", gitignoreParser.ConvertToRegEx("[Bb]uild[Ll]og.*"));
+            // RULE : Special case for "/line/"
+            Assert.Equal(@"^lib(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString("/lib/"));
+        }
 
-            // RULE : Wildcard in path
-            Assert.Equal(@"(^[Tt]est[Rr]esult[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[\S\s]*|[\S\s]*\/[Tt]est[Rr]esult[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[\S\s]*)$", gitignoreParser.ConvertToRegEx("[Tt]est[Rr]esult*/"));
-            Assert.Equal(@"(^[Tt]est[Rr]esult\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*|[\S\s]*\/[Tt]est[Rr]esult\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\/[^\f\n\r\t\v\u00A0\u2028\u2029\/]*)$",
-                gitignoreParser.ConvertToRegEx("[Tt]est[Rr]esult/*/*"));
+        [Fact]
+        public void Convert_Test_4()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
+
+            // RULE : "line" matches both File or Directory 
+            Assert.Equal(@"^(?:[\S\s]+\/)*[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.jpg(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("*.jpg"));
+            Assert.Equal(gitignoreParser.ConvertToRegexString("*.jpg"), gitignoreParser.ConvertToRegexString(" *.jpg "));
+            Assert.Equal(@"^(?:[\S\s]+\/)*[^\f\n\r\t\v\u00A0\u2028\u2029\/]*\.sln\.docstates(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("*.sln.docstates"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*abc\.jpg(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("abc.jpg"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*\.jpg(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString(".jpg"));
+            Assert.Equal(@"^(?:[\S\s]+\/)*[Bb]uild[Ll]og\.[^\f\n\r\t\v\u00A0\u2028\u2029\/]*(?:\/[\S\s]+)*$", gitignoreParser.ConvertToRegexString("[Bb]uild[Ll]og.*"));
+        }
+
+        [Fact]
+        public void Convert_Test_5()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
+
+            // RULE : "*" in the middle of "line"
+            Assert.Equal(@"^(?:[\S\s]+\/)*[Tt]est[Rr]esult[^\f\n\r\t\v\u00A0\u2028\u2029\/]*(?:\/[\S\s]+)+$", gitignoreParser.ConvertToRegexString("[Tt]est[Rr]esult*/"));
+        }
+
+        [Fact]
+        public void ParseLine_Test()
+        {
+            var gitignoreParser = new GitignoreParser(_logger);
+
+            GitignorePattern pattern;
+
+            pattern = gitignoreParser.ParsePattern("*.png");
+            Assert.False(pattern.IsInclusive);
+            Assert.True(pattern.Expression.IsMatch("filesync.png"));
+            Assert.True(pattern.Expression.IsMatch("1/filesync.png"));
+            Assert.True(pattern.Expression.IsMatch("2/1/filesync.png"));
+
+            pattern = gitignoreParser.ParsePattern("[Tt]est[Rr]esult*/");
+            Assert.False(pattern.IsInclusive);
+            Assert.True(pattern.Expression.IsMatch("Testresult/filesync.cs"));
+            Assert.True(pattern.Expression.IsMatch("TestresultFILESYNC/filesync.cs"));
         }
     }
 }

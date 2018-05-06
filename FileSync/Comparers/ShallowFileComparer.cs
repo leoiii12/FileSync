@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using JetBrains.Annotations;
 using Serilog;
 
 namespace FileSync.Comparers
@@ -8,9 +9,9 @@ namespace FileSync.Comparers
     {
         private readonly ILogger _logger;
 
-        public ShallowFileComparer(ILogger logger)
+        public ShallowFileComparer([NotNull] ILogger logger)
         {
-            _logger = logger;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public bool GetIsEqualFile(string srcFilePath, string destFilePath)

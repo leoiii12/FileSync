@@ -1,108 +1,174 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using JetBrains.Annotations;
+using Serilog;
 
 namespace FileSync.Filters
 {
     public class GitignoreParser
     {
-        private const string OriginalAsterisk = "<<<ASTERISK>>>";
-        private const string WildcardRegEx = @"[^\f\n\r\t\v\u00A0\u2028\u2029\/]*";
+        private const string Asterisk = "<<<ASTERISK>>>";
+        private const string AsteriskRegEx = @"[^\f\n\r\t\v\u00A0\u2028\u2029\/]*";
+
+        private readonly ILogger _logger;
 
         private readonly List<(string, string)> _availableUserEscapedCharacters = new List<(string, string)>
         {
             (@"\ ", "<<<SPACE>>>"),
-            (@"\#", "<<<SHARP>>>"),
+            (@"\^", "<<<CARET>>>"),
+            (@"\.", "<<<DOT>>>"),
+            (@"\|", "<<<PIPE>>>"),
+            (@"\$", "<<<DOLLAR>>>"),
+            (@"\+", "<<<PLUS>>>"),
+            (@"\(", "<<<OPENING>>>"),
+            (@"\)", "<<<CLOSING>>>"),
+            (@"\[", "<<<OPENING_BRACKET>>>"),
+            (@"\]", "<<<CLOSING_BRACKET>>>"),
             (@"\!", "<<<EXCLAMATION>>>")
         };
 
-        public IReadOnlyList<GitignorePattern> ParseFile(string path)
+        public GitignoreParser([NotNull] ILogger logger)
         {
-            var lines = File.ReadAllLines(path);
-
-            return lines.Select(ParseLine).ToArray();
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public GitignorePattern ParseLine(string line)
+        public IReadOnlyList<GitignorePattern> ParseFile([NotNull] string path)
+        {
+            if (path == null) throw new ArgumentNullException(nameof(path));
+
+            if (!File.Exists(path)) return new List<GitignorePattern>();
+
+            _logger.Verbose($"Parsing .fsignore {path}...");
+
+            var lines = File.ReadAllLines(path);
+
+            var patterns = lines
+                .Select(ParsePattern)
+                .Where(p => p.Expression != null)
+                .ToArray();
+
+            _logger.Verbose($"Parsed .fsignore {path}.");
+
+            return patterns;
+        }
+
+        public IReadOnlyList<GitignorePattern> ParsePatterns([NotNull] IReadOnlyList<string> lines)
+        {
+            return lines
+                .Select(ParsePattern)
+                .Where(p => p.Expression != null)
+                .ToArray();
+        }
+
+        public GitignorePattern ParsePattern(string line)
         {
             var pattern = new GitignorePattern();
 
-            // RULE : A line starting with # serves as a negations.
+            // RULE : A line starting with "!" serves as a negation.
             if (line.StartsWith("!"))
-                pattern.IsInclusive = false;
+            {
+                line = line.Substring(1);
+                pattern.IsInclusive = true;
+            }
+
+            var regexString = ConvertToRegexString(line);
+
+            if (regexString == null) return pattern;
+
+            pattern.Expression = new Regex(regexString, RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
             return pattern;
         }
 
-        public string ConvertToRegEx(string line)
+        public string ConvertToRegexString(string line)
         {
             line = Santinize(line);
 
             if (line == @"\/" ||
-                line == OriginalAsterisk ||
-                line == OriginalAsterisk + OriginalAsterisk) return null;
+                line == Asterisk ||
+                line == Asterisk + Asterisk) return null;
 
-            // RULE : A blank line matches no files.
+            #region RULE : A blank line matches no files.
+
             if (string.IsNullOrWhiteSpace(line)) return null;
 
-            // RULE : A line starting with # serves as a comment.
+            #endregion
+
+            #region RULE : "#line" A line starting with # serves as a comment.
+
             if (line.StartsWith("#")) return null;
 
-            // RULE : "?"
+            #endregion
+
+            #region RULE : "?"
+
             line = line.Replace("?", ".");
 
-            // RULE : "**"
-            line = line.Replace($"{OriginalAsterisk}{OriginalAsterisk}", @"[\S\s]+");
+            #endregion
 
-            // RULE : Special case for "/" line "/"
-            if (line.StartsWith(@"\/") && line.EndsWith(@"\/"))
+            #region RULE : "**"
+
+            if (line.Contains($@"\/{Asterisk}{Asterisk}\/"))
+                line = "(?:" + line + "|" + line.Replace($@"\/{Asterisk}{Asterisk}\/", @"\/[\S\s]+\/") + ")";
+
+            line = line.Replace($@"{Asterisk}{Asterisk}\/", @"");
+            line = line.Replace($@"\/{Asterisk}{Asterisk}", @"");
+
+            #endregion
+
+            #region RULE : "*/line/*" matches folders and files which directly neigbours with the specified folder
+
+            if (line.StartsWith(Asterisk + @"\/"))
+            {
+                line = line.Substring((Asterisk + @"\/").Length);
+                line = AsteriskRegEx + @"\/" + line;
+                line = "^" + line;
+            }
+
+            if (line.EndsWith(@"\/" + Asterisk))
+            {
+                line = line.Substring(0, line.LastIndexOf(@"\/" + Asterisk, StringComparison.Ordinal));
+                line = line + @"\/" + AsteriskRegEx;
+                line = line + "$";
+            }
+
+            #endregion
+
+            #region RULE : "/line" matches only Root file
+
+            if (line.StartsWith(@"\/"))
             {
                 line = line.Substring(2);
-                line = line.Replace(OriginalAsterisk, WildcardRegEx);
-                line = "^" + line + @"[\S\s]*" + "$";
+                line = "^" + line;
             }
-            else
+
+            #endregion
+
+            #region RULE : "line/" matches only Directory
+
+            if (line.EndsWith(@"\/"))
             {
-                // RULE : A line starting with "*/" serves as directory specifier
-                if (line.StartsWith(OriginalAsterisk + @"\/"))
-                {
-                    line = line.Substring(OriginalAsterisk.Length);
-                    line = $@"^{WildcardRegEx}{line}$";
-                }
-
-                // RULE : A line starting with "/" serves as root
-                else if (line.StartsWith(@"\/"))
-                {
-                    line = line.Substring(2);
-                    line = line.Replace(OriginalAsterisk, WildcardRegEx);
-                    line = "^" + line + "$";
-                }
-
-                // RULE : A line ending with "/" matches with everything at the beneath
-                else if (line.EndsWith(@"\/"))
-                {
-                    line = line + @"[\S\s]*";
-                    line = $@"(^{line}|[\S\s]*\/{line})$";
-                }
-
-                // RULE : A line without starting and ending specifiers
-                else
-                {
-                    line = $@"(^{line}|[\S\s]*\/{line})$";
-                }
+                line = line.Substring(0, line.Length - @"\/".Length);
+                line = line + @"(?:\/[\S\s]+)+" + "$";
             }
 
-            // RULE : Wildcard in path
-            if (line.Contains(OriginalAsterisk))
-            {
-                line = line.Replace(OriginalAsterisk, WildcardRegEx);
+            #endregion
 
-                if (!line.EndsWith("$")) line = line + "$";
-            }
+            #region RULE : "line" matches both File or Directory 
 
-            // RULE : A line is read from the start to the end by default
-            if (!line.StartsWith("^") && !line.EndsWith("$")) line = "^" + line + "$";
+            if (!line.StartsWith("^")) line = "^" + @"(?:[\S\s]+\/)*" + line;
+            if (!line.EndsWith("$")) line = line + @"(?:\/[\S\s]+)*" + "$";
+
+            #endregion
+
+            #region RULE : "*" in the middle of "line"
+
+            line = line.Replace(Asterisk, AsteriskRegEx);
+
+            #endregion
 
             line = Desantinize(line);
 
@@ -112,7 +178,7 @@ namespace FileSync.Filters
         private string Santinize(string line)
         {
             line = line.Trim();
-            line = line.Replace("*", OriginalAsterisk);
+            line = line.Replace("*", Asterisk);
 
             // Preserve user-escaped characters
             foreach (var (c1, c2) in _availableUserEscapedCharacters) line = line.Replace(c1, c2);
@@ -127,7 +193,7 @@ namespace FileSync.Filters
 
         private string Desantinize(string line)
         {
-            line = line.Replace(OriginalAsterisk, "*");
+            line = line.Replace(Asterisk, "*");
 
             // Put back user-escaped characters
             foreach (var (c1, c2) in _availableUserEscapedCharacters) line = line.Replace(c2, c1);

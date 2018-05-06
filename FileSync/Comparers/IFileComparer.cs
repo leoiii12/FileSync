@@ -1,7 +1,9 @@
-﻿namespace FileSync.Comparers
+﻿using JetBrains.Annotations;
+
+namespace FileSync.Comparers
 {
     public interface IFileComparer
     {
-        bool GetIsEqualFile(string srcFilePath, string destFilePath);
+        bool GetIsEqualFile([NotNull] string srcFilePath, [NotNull] string destFilePath);
     }
 }

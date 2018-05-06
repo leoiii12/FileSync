@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using JetBrains.Annotations;
 using Serilog;
 
 namespace FileSync.Operations
@@ -10,9 +11,9 @@ namespace FileSync.Operations
 
         private readonly ILogger _logger;
 
-        public SimpleFileDeleter(ILogger logger)
+        public SimpleFileDeleter([NotNull] ILogger logger)
         {
-            _logger = logger;
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public void Delete(string filePath)

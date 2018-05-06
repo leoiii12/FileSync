@@ -1,7 +1,9 @@
-﻿namespace FileSync.Operations
+﻿using JetBrains.Annotations;
+
+namespace FileSync.Operations
 {
     public interface IFileCopier
     {
-        void Copy(string srcFilePath, string destFilePath);
+        void Copy([NotNull] string srcFilePath, [NotNull] string destFilePath);
     }
 }

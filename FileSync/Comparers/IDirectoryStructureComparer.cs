@@ -1,10 +1,11 @@
 ﻿using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace FileSync.Comparers
 {
     public interface IDirectoryStructureComparer
     {
-        DirectoryStructureComparer Compare(string src, string dest);
+        DirectoryStructureComparer Compare([NotNull] string src, [NotNull] string dest);
         IEnumerable<(string, string)> ToTuples();
     }
 }
