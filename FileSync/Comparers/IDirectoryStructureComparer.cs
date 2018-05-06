@@ -6,6 +6,6 @@ namespace FileSync.Comparers
     public interface IDirectoryStructureComparer
     {
         DirectoryStructureComparer Compare([NotNull] string src, [NotNull] string dest);
-        IEnumerable<(string, string)> ToTuples();
+        ICollection<Pair> ToPairs();
     }
 }

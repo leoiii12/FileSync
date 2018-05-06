@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -50,63 +51,79 @@ namespace FileSync
 
         public void Sync()
         {
-            // TODO : Should tolerate the error
-            if (!Directory.Exists(_src)) throw new Exception($"{_src} not found. Terminated.");
-            if (!Directory.Exists(_dest)) throw new Exception($"{_dest} not found. Terminated.");
+            if (!Directory.Exists(_src)) throw new Exception($"Src {_src} not found. Terminated.");
+            if (!Directory.Exists(_dest)) throw new Exception($"Dest {_dest} not found. Terminated.");
 
             _logger.Information($"Synchronizing from {_src} to {_dest}...");
 
-            var tuples = _directoryStructureComparer.Compare(_src, _dest).ToTuples();
+            var pairs = _directoryStructureComparer.Compare(_src, _dest).ToPairs();
 
-            Parallel.ForEach(tuples, new ParallelOptions {MaxDegreeOfParallelism = 4}, tuple => { SyncOnTuple(tuple); });
+            try
+            {
+                Parallel.ForEach(pairs, new ParallelOptions {MaxDegreeOfParallelism = 4}, SyncOnTuple);
+            }
+            catch (AggregateException e)
+            {
+                throw new Exception(e.InnerExceptions.GroupBy(ie => ie.Message).Select(g => g.Key).First());
+            }
 
-            _logger.Information("Synchronized.");
+            var notYetSyncedFiles = pairs.Where(p => !p.HasSynced).ToArray();
+
+            _logger.Information(pairs.All(p => p.HasSynced) ? "Synchronized." : $"Synchronized with errors, number of remaining files = {notYetSyncedFiles.Length}.");
+            _logger.Verbose("Not synced: " + string.Join(',', notYetSyncedFiles.Select(p => p.SourcePath)));
         }
 
-        private void SyncOnTuple((string, string) tuple)
+        private void SyncOnTuple(Pair pair)
         {
-            var (srcFile, destFile) = tuple;
+            var srcPath = pair.SourcePath;
+            var destPath = pair.DestinationPath;
 
-            var isEmptySrcFile = string.IsNullOrEmpty(srcFile);
-            var isEmptyDestFile = string.IsNullOrEmpty(destFile);
+            var isEmptySrcFile = string.IsNullOrEmpty(srcPath);
+            var isEmptyDestFile = string.IsNullOrEmpty(destPath);
 
             if (isEmptySrcFile && isEmptyDestFile) return;
 
+            if (!Directory.Exists(_src)) throw new Exception($"Src {_src} not found. Terminated.");
+            if (!Directory.Exists(_dest)) throw new Exception($"Dest {_dest} not found. Terminated.");
+
+            // Src file does not exist, delete in the dest directory
             if (isEmptySrcFile)
             {
-                // 1. src file no longer exists
+                if (!_appConfig.KeepRemovedFilesInDest)
+                {
+                    _fileDeleter.Delete(Path.Combine(_dest, destPath));
 
-                if (_appConfig.KeepRemovedFilesInDest) return;
-
-                _fileDeleter.Delete(Path.Combine(_dest, destFile));
-
-                _logger.Verbose($"Removed file \"{destFile}\" in \"{_dest}\"");
+                    _logger.Verbose($"Removed file \"{destPath}\" in \"{_dest}\"");
+                }
             }
+            
+            // Dest file does not exit, copy src to dest
             else if (isEmptyDestFile)
             {
-                // 2. Dest file does not exits
-
-                var srcFilePath = Path.Combine(_src, srcFile);
-                var destFilePath = Path.Combine(_dest, srcFile);
+                var srcFilePath = Path.Combine(_src, srcPath);
+                var destFilePath = Path.Combine(_dest, srcPath);
 
                 _fileCopier.Copy(srcFilePath, destFilePath);
 
-                _logger.Verbose($"Copied file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
+                _logger.Verbose($"Copied file \"{srcPath}\" from \"{_src}\" to \"{_dest}\".");
             }
+            
+            // If both src and dest files exist, compare and sync
             else
             {
-                // 3. Both src and dest files exist => Compare
+                var srcFilePath = Path.Combine(_src, srcPath);
+                var destFilePath = Path.Combine(_dest, destPath);
+                
+                var isDifferentFile = !_fileComparer.GetIsEqualFile(srcFilePath, destFilePath);
+                if (isDifferentFile)
+                {
+                    _fileMerger.Merge(srcFilePath, destFilePath);
 
-                var srcFilePath = Path.Combine(_src, srcFile);
-                var destFilePath = Path.Combine(_dest, destFile);
-                var isEqualFile = _fileComparer.GetIsEqualFile(srcFilePath, destFilePath);
-
-                if (isEqualFile) return;
-
-                _fileMerger.Merge(srcFilePath, destFilePath);
-
-                _logger.Verbose($"Merged file \"{srcFile}\" from \"{_src}\" to \"{_dest}\".");
+                    _logger.Verbose($"Merged file \"{srcPath}\" from \"{_src}\" to \"{_dest}\".");
+                }
             }
+
+            pair.Done();
         }
 
         public void WatchAndSync()

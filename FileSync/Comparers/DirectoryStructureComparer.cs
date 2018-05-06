@@ -55,16 +55,16 @@ namespace FileSync.Comparers
             return this;
         }
 
-        public IEnumerable<(string, string)> ToTuples()
+        public ICollection<Pair> ToPairs()
         {
             if (_addingFiles == null || _files == null || _removingFiles == null) throw new Exception($"Please ${nameof(Compare)} first.");
 
-            var tuples = new List<(string, string)>();
-            tuples.AddRange(_addingFiles.Select(af => (af, string.Empty)));
-            tuples.AddRange(_removingFiles.Select(rf => (string.Empty, rf)));
-            tuples.AddRange(_files.Select(f => (f, f)));
+            var tuples = new List<Pair>();
+            tuples.AddRange(_addingFiles.Select(af => new Pair(af, string.Empty)));
+            tuples.AddRange(_removingFiles.Select(rf => new Pair(string.Empty, rf)));
+            tuples.AddRange(_files.Select(f => new Pair(f, f)));
 
-            return tuples;
+            return tuples.ToArray();
         }
     }
 }

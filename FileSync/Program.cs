@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
@@ -19,8 +20,14 @@ namespace FileSync
         private static void Main(string[] args)
         {
             var appConfig = new AppConfig().Initialize();
+            
+            var logger = new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.File(appConfig.Log)
+                .WriteTo.Console(LogEventLevel.Information)
+                .CreateLogger();
 
-            Initialize(appConfig);
+            Initialize(appConfig, logger);
 
             Console.CancelKeyPress += (sender, eArgs) =>
             {
@@ -44,7 +51,7 @@ namespace FileSync
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.GetBaseException());
+                    logger.Fatal(e.GetBaseException().ToString());
                     
                     Environment.Exit(-1);
                 }
@@ -53,35 +60,42 @@ namespace FileSync
             QuitEvent.WaitOne();
         }
 
-        private static void Initialize(IAppConfig appConfig)
+        private static void Initialize(IAppConfig appConfig, ILogger logger)
         {
-            var log = new LoggerConfiguration()
-                .MinimumLevel.Verbose()
-                .WriteTo.File(appConfig.Log)
-                .WriteTo.Console(LogEventLevel.Information)
-                .CreateLogger();
-
             var builder = new ContainerBuilder();
 
             builder.RegisterInstance(appConfig).As<IAppConfig>();
 
-            builder.RegisterInstance(log).As<ILogger>();
+            builder.RegisterInstance(logger).As<ILogger>();
+
+            #region Filters
 
             builder.RegisterType<GitignoreParser>();
+            
             builder.RegisterType<GitignoreFileFilter>().As<IFileFilter>();
 
-            builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
+            #endregion
+            
+            #region Comparers
 
+            builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
+            
             if (appConfig.UseDeepFileComparer)
                 builder.RegisterType<DeepFileComparer>().As<IFileComparer>();
             else
                 builder.RegisterType<ShallowFileComparer>().As<IFileComparer>();
 
+            #endregion
+
+            #region Operations
+
             builder.RegisterType<SimpleFileCopier>().As<IFileCopier>();
-
+            
             builder.RegisterType<SimpleFileDeleter>().As<IFileDeleter>();
-
+            
             builder.RegisterType<SimpleFileMerger>().As<IFileMerger>();
+
+            #endregion
 
             builder.RegisterType<FileSynchronizer>();
 
