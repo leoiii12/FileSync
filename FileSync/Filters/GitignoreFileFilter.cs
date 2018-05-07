@@ -30,6 +30,9 @@ namespace FileSync.Filters
             if (_gitignorePatterns == null)
                 throw new Exception($"Please initialize {nameof(GitignoreFileFilter)}.");
 
+            if (_gitignorePatterns.Count == 0)
+                return false;
+
             var fileName = Path.GetFileName(path);
             var parentPath = path.Substring(0, path.LastIndexOf(fileName, StringComparison.Ordinal));
 
