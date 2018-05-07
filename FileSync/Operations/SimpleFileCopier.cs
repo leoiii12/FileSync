@@ -39,7 +39,7 @@ namespace FileSync.Operations
                 File.Copy(srcFilePath, tempFilePath);
                 File.Move(tempFilePath, destFilePath);
 
-                _fileComparer.GetIsEqualFile(srcFilePath, destFilePath);
+                _fileComparer.EnsureIsEqualFile(srcFilePath, destFilePath);
             }
             catch (Exception e)
             {

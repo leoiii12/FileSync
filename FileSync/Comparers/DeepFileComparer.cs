@@ -43,6 +43,11 @@ namespace FileSync.Comparers
             return isEqualFile;
         }
 
+        public void EnsureIsEqualFile(string srcFilePath, string destFilePath)
+        {
+            if (!GetIsEqualFile(srcFilePath, destFilePath)) throw new Exception($"The dest file \"{destFilePath}\" is different from the src file \"{srcFilePath}\".");
+        }
+
         private static bool DeepFileCompare(string srcFilePath, string destFilePath)
         {
             bool isEqual;
