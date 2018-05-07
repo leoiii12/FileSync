@@ -35,8 +35,10 @@ namespace FileSync.Comparers
             var srcFileInfo = new FileInfo(srcFilePath);
             var destFileInfo = new FileInfo(destFilePath);
 
-            // TODO: Check timestamp
-            return srcFileInfo.Length == destFileInfo.Length;
+            var isEqualFile = srcFileInfo.Length == destFileInfo.Length &&
+                              Math.Abs((srcFileInfo.LastWriteTimeUtc - destFileInfo.LastWriteTimeUtc).TotalMilliseconds) < 2000;
+
+            return isEqualFile;
         }
     }
 }
