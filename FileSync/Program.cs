@@ -21,12 +21,41 @@ namespace FileSync
         private static void Main(string[] args)
         {
             var appConfig = new AppConfig().Initialize();
-            
+
             var logger = new LoggerConfiguration()
                 .MinimumLevel.Verbose()
                 .WriteTo.File(appConfig.Log)
                 .WriteTo.Console(LogEventLevel.Information)
                 .CreateLogger();
+
+            AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
+            {
+                switch (eventArgs.ExceptionObject)
+                {
+                    case AggregateException e:
+                        var exceptionGroups = e.InnerExceptions.GroupBy(ie => ie.Message).ToArray();
+
+                        foreach (var group in exceptionGroups)
+                        {
+                            var message = group.Key;
+                            var baseExceptions = string.Join(", ", group.Select(a => a.GetBaseException().ToString()));
+
+                            logger.Verbose(message);
+                            logger.Verbose(baseExceptions);
+                        }
+
+                        logger.Fatal(string.Join(", ", exceptionGroups.Select(a => a.Key).ToArray()));
+                        break;
+                    case Exception e:
+                        logger.Fatal(e.GetBaseException().ToString());
+                        break;
+                    default:
+                        logger.Fatal(eventArgs.ExceptionObject.ToString());
+                        break;
+                }
+
+                Environment.Exit(-1);
+            };
 
             Initialize(appConfig, logger);
 
@@ -38,24 +67,15 @@ namespace FileSync
 
             Task.Run(() =>
             {
-                try
-                {
-                    FileSynchronizer fileSynchronizer;
+                FileSynchronizer fileSynchronizer;
 
-                    using (var scope = Container.BeginLifetimeScope())
-                    {
-                        fileSynchronizer = scope.Resolve<FileSynchronizer>();
-                    }
-
-                    fileSynchronizer.Sync();
-                    fileSynchronizer.WatchAndSync();
-                }
-                catch (Exception e)
+                using (var scope = Container.BeginLifetimeScope())
                 {
-                    logger.Fatal(e.GetBaseException().ToString());
-                    
-                    Environment.Exit(-1);
+                    fileSynchronizer = scope.Resolve<FileSynchronizer>();
                 }
+
+                fileSynchronizer.Sync();
+                fileSynchronizer.WatchAndSync();
             });
 
             QuitEvent.WaitOne();
