@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
 using FileSync.Comparers;
+using FileSync.FileWatchers;
 using FileSync.Filters;
 using FileSync.Operations;
 using Serilog;
@@ -68,18 +69,24 @@ namespace FileSync
 
             builder.RegisterInstance(logger).As<ILogger>();
 
+            #region FileWatchers
+
+            builder.RegisterType<FileWatcher>().As<IFileWatcher>();
+
+            #endregion
+
             #region Filters
 
             builder.RegisterType<GitignoreParser>();
-            
+
             builder.RegisterType<GitignoreFileFilter>().As<IFileFilter>();
 
             #endregion
-            
+
             #region Comparers
 
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
-            
+
             if (appConfig.UseDeepFileComparer)
                 builder.RegisterType<DeepFileComparer>().As<IFileComparer>();
             else
@@ -90,9 +97,9 @@ namespace FileSync
             #region Operations
 
             builder.RegisterType<SimpleFileCopier>().As<IFileCopier>();
-            
+
             builder.RegisterType<SimpleFileDeleter>().As<IFileDeleter>();
-            
+
             builder.RegisterType<SimpleFileMerger>().As<IFileMerger>();
 
             #endregion
