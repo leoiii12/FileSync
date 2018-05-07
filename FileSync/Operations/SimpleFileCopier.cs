@@ -8,7 +8,7 @@ namespace FileSync.Operations
 {
     public class SimpleFileCopier : IFileCopier
     {
-        private const string TempExtenstion = ".fstmp"; // File Sync TeMP
+        private const string TempExtenstion = ".fstmp"; // "FileSync Temp"
 
         private readonly ILogger _logger;
         private readonly IFileComparer _fileComparer;

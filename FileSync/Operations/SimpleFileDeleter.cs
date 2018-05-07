@@ -7,7 +7,7 @@ namespace FileSync.Operations
 {
     public class SimpleFileDeleter : IFileDeleter
     {
-        private const string OldExtenstion = ".fsrmd"; // File Sync ReMoveD
+        private const string TempExtenstion = ".fsrmd"; // "FileSync Removed"
 
         private readonly ILogger _logger;
 
@@ -18,11 +18,23 @@ namespace FileSync.Operations
 
         public void Delete(string filePath)
         {
+            if (!File.Exists(filePath)) return;
+
             try
             {
-                var oldFilePath = filePath + OldExtenstion;
+                var originalExtension = Path.GetExtension(filePath);
+                if (originalExtension == TempExtenstion)
+                {
+                    File.Delete(filePath);
+                }
+                else
+                {
+                    var newExtension = originalExtension + TempExtenstion;
+                    var newPath = Path.ChangeExtension(filePath, newExtension);
 
-                File.Move(filePath, oldFilePath);
+                    File.Move(filePath, newPath);
+                    File.Delete(newPath);
+                }
             }
             catch (Exception e)
             {
