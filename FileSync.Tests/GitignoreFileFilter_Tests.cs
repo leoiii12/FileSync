@@ -60,7 +60,7 @@ namespace FileSync.Tests
             _gitignoreFileFilter.SetPatterns(patterns);
         }
 
-        public static IEnumerable<object[]> Data()
+        public static IEnumerable<object[]> Filtered_TestData()
         {
             // https://github.com/svent/gitignore-test
 
@@ -99,7 +99,7 @@ namespace FileSync.Tests
         }
 
         [Theory]
-        [MemberData(nameof(Data))]
+        [MemberData(nameof(Filtered_TestData))]
         public void Filtered_Test(string path, bool expected)
         {
             var isIncluded = !_gitignoreFileFilter.Filterd(path);

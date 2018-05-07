@@ -36,50 +36,76 @@ namespace FileSync.Filters
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public IReadOnlyList<GitignorePattern> ParseFile([NotNull] string path)
+        public IReadOnlyList<GitignorePattern> ParseFile([NotNull] string absolutePath, string parentRelativePath = "")
         {
-            if (path == null) throw new ArgumentNullException(nameof(path));
+            if (absolutePath == null) throw new ArgumentNullException(nameof(absolutePath));
 
-            if (!File.Exists(path)) return new List<GitignorePattern>();
+            if (!File.Exists(absolutePath)) return new List<GitignorePattern>();
 
-            _logger.Verbose($"Parsing .fsignore {path}...");
+            _logger.Verbose($"Parsing .fsignore {absolutePath}...");
 
-            var lines = File.ReadAllLines(path);
+            var lines = File.ReadAllLines(absolutePath);
 
             var patterns = lines
-                .Select(ParsePattern)
+                .Select(l => ParseLine(l, parentRelativePath))
                 .Where(p => p.Expression != null)
                 .ToArray();
 
-            _logger.Verbose($"Parsed .fsignore {path}.");
+            _logger.Verbose($"Parsed .fsignore {absolutePath}.");
 
             return patterns;
         }
 
-        public IReadOnlyList<GitignorePattern> ParsePatterns([NotNull] IReadOnlyList<string> lines)
+        public IReadOnlyList<GitignorePattern> ParseLines([NotNull] IReadOnlyList<string> lines, string parentRelativePath = "")
         {
             return lines
-                .Select(ParsePattern)
+                .Select(l => ParseLine(l, parentRelativePath))
                 .Where(p => p.Expression != null)
                 .ToArray();
         }
 
-        public GitignorePattern ParsePattern(string line)
+        public GitignorePattern ParseLine(string line, string parentRelativePath = "")
         {
             var pattern = new GitignorePattern();
+            
+            line = line.Trim();
 
-            // RULE : A line starting with "!" serves as a negation.
+            #region RULE : A blank line matches no files.
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                pattern.Expression = null;
+                return pattern;
+            }
+
+            #endregion
+
+            #region RULE : "#line" A line starting with # serves as a comment.
+
+            if (line.StartsWith("#"))
+            {
+                pattern.Expression = null;
+                return pattern;
+            }
+
+            #endregion
+
+            #region RULE : A line starting with "!" serves as a negation.
+
             if (line.StartsWith("!"))
             {
                 line = line.Substring(1);
                 pattern.IsInclusive = true;
             }
 
-            var regexString = ConvertToRegexString(line);
+            #endregion
 
-            if (regexString == null) return pattern;
+            if (parentRelativePath.Length > 0)
+                line = "/" + parentRelativePath + line;
 
-            pattern.Expression = new Regex(regexString, RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+            line = ConvertToRegexString(line);
+
+            pattern.Expression = new Regex(line, RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
             return pattern;
         }
@@ -87,22 +113,10 @@ namespace FileSync.Filters
         public string ConvertToRegexString(string line)
         {
             line = Santinize(line);
-
+            
             if (line == @"\/" ||
                 line == Asterisk ||
                 line == Asterisk + Asterisk) return null;
-
-            #region RULE : A blank line matches no files.
-
-            if (string.IsNullOrWhiteSpace(line)) return null;
-
-            #endregion
-
-            #region RULE : "#line" A line starting with # serves as a comment.
-
-            if (line.StartsWith("#")) return null;
-
-            #endregion
 
             #region RULE : "?"
 
@@ -172,13 +186,12 @@ namespace FileSync.Filters
             #endregion
 
             line = Desantinize(line);
-
+            
             return line;
         }
 
         private string Santinize(string line)
         {
-            line = line.Trim();
             line = line.Replace("*", Asterisk);
 
             // Preserve user-escaped characters

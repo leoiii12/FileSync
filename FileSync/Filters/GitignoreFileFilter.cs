@@ -17,12 +17,28 @@ namespace FileSync.Filters
         public GitignoreFileFilter([NotNull] IAppConfig appConfig, [NotNull] GitignoreParser gitignoreParser)
         {
             _gitignoreParser = gitignoreParser ?? throw new ArgumentNullException(nameof(gitignoreParser));
-            _gitignorePatterns = _gitignoreParser.ParseFile(Path.Combine(appConfig.Src, ".fsignore"));
+
+            var patterns = new List<GitignorePattern>();
+
+            if (Directory.Exists(appConfig.Src))
+            {
+                var fsignorePaths = Directory.GetFiles(appConfig.Src, ".fsignore", SearchOption.AllDirectories);
+
+                foreach (var absolutePath in fsignorePaths)
+                {
+                    var relativePath = Path.GetRelativePath(appConfig.Src, absolutePath);
+                    var fsignoreParentRelativePath = relativePath.Substring(0, relativePath.LastIndexOf(".fsignore", StringComparison.Ordinal));
+
+                    patterns.AddRange(_gitignoreParser.ParseFile(absolutePath, fsignoreParentRelativePath));
+                }
+            }
+
+            _gitignorePatterns = patterns;
         }
 
         public void SetPatterns(IReadOnlyList<string> patterns)
         {
-            _gitignorePatterns = _gitignoreParser.ParsePatterns(patterns);
+            _gitignorePatterns = _gitignoreParser.ParseLines(patterns);
         }
 
         public bool Filterd(string path)
