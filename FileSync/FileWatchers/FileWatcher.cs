@@ -4,18 +4,18 @@ using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
 using FileSync.Filters;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.FileWatchers
 {
     public class FileWatcher : IFileWatcher
     {
         private readonly IFileFilter _fileFilter;
-        private readonly ILogger _logger;
+        private readonly ILogger<FileWatcher> _logger;
 
         private FileSystemWatcher _srcWatcher;
 
-        public FileWatcher(ILogger logger, IFileFilter fileFilter)
+        public FileWatcher(ILogger<FileWatcher> logger, IFileFilter fileFilter)
         {
             _logger = logger;
             _fileFilter = fileFilter;
@@ -33,7 +33,10 @@ namespace FileSync.FileWatchers
                 IncludeSubdirectories = true
             };
 
-            bool FileFilterPredicate(EventPattern<FileSystemEventArgs> e) => !_fileFilter.Filterd(e.EventArgs.Name);
+            bool FileFilterPredicate(EventPattern<FileSystemEventArgs> e)
+            {
+                return !_fileFilter.Filterd(e.EventArgs.Name);
+            }
 
             FileSystemEventArgs Selector(EventPattern<FileSystemEventArgs> pattern)
             {
@@ -44,18 +47,18 @@ namespace FileSync.FileWatchers
                     case WatcherChangeTypes.All:
                         break;
                     case WatcherChangeTypes.Changed:
-                        _logger.Verbose($"Source \"{e.FullPath}\" has been changed.");
+                        _logger.LogDebug($"Source \"{e.FullPath}\" has been changed.");
                         break;
                     case WatcherChangeTypes.Created:
-                        _logger.Verbose($"Source \"{e.FullPath}\" has been created.");
+                        _logger.LogDebug($"Source \"{e.FullPath}\" has been created.");
 
                         break;
                     case WatcherChangeTypes.Deleted:
-                        _logger.Verbose($"Source \"{e.FullPath}\" has been deleted.");
+                        _logger.LogDebug($"Source \"{e.FullPath}\" has been deleted.");
                         break;
                     case WatcherChangeTypes.Renamed:
                         var renamedEventArgs = (RenamedEventArgs) e;
-                        _logger.Verbose($"Source \"{renamedEventArgs.OldFullPath}\" has been renamed to \"{e.FullPath}\".");
+                        _logger.LogDebug($"Source \"{renamedEventArgs.OldFullPath}\" has been renamed to \"{e.FullPath}\".");
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();

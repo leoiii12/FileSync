@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using FileSync.Filters;
-using Serilog;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace FileSync.Tests
@@ -20,8 +20,6 @@ namespace FileSync.Tests
 
         public GitignoreFileFilter_Tests()
         {
-            var logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
-
             var patterns = new List<string>
             {
                 "*.[oa]",
@@ -56,7 +54,7 @@ namespace FileSync.Tests
                 "!/htmldoc/*.html"
             };
 
-            _gitignoreFileFilter = new GitignoreFileFilter(new AppConfig(), new GitignoreParser(logger));
+            _gitignoreFileFilter = new GitignoreFileFilter(new AppConfig(), new GitignoreParser(NullLogger<GitignoreParser>.Instance));
             _gitignoreFileFilter.SetPatterns(patterns);
         }
 

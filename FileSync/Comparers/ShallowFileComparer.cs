@@ -1,15 +1,15 @@
 ﻿using System;
 using System.IO;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
 {
     public class ShallowFileComparer : IFileComparer
     {
-        private readonly ILogger _logger;
+        private readonly ILogger<ShallowFileComparer> _logger;
 
-        public ShallowFileComparer([NotNull] ILogger logger)
+        public ShallowFileComparer([NotNull] ILogger<ShallowFileComparer> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -24,7 +24,7 @@ namespace FileSync.Comparers
             }
             catch (Exception e)
             {
-                _logger.Error(e.GetBaseException().ToString());
+                _logger.LogError(e.GetBaseException().ToString());
             }
 
             return isEqualFile;
@@ -54,7 +54,6 @@ namespace FileSync.Comparers
             }
             else
             {
-
                 isEqualFile = srcFileInfo.Length == destFileInfo.Length &&
                               Math.Abs((srcFileInfo.LastWriteTimeUtc - destFileInfo.LastWriteTimeUtc).TotalMilliseconds) < 2000;
             }

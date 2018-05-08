@@ -4,34 +4,43 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Filters
 {
     public class GitignoreParser
     {
         private const string Asterisk = "<<<ASTERISK>>>";
-        private const string AsteriskRegEx = @"[^\f\n\r\t\v\u00A0\u2028\u2029\/]*";
+        private const string AsteriskRegEx = @"[^\f\n\r\t\v\u00A0\u2028\u2029\/]*?";
 
-        private readonly ILogger _logger;
-
-        // TODO
-        private readonly List<(string, string)> _availableUserEscapedCharacters = new List<(string, string)>
+        private readonly List<(string, string, string)> _escapedCharacters = new List<(string, string, string)>
         {
-            (@"\ ", "<<<SPACE>>>"),
-            (@"\^", "<<<CARET>>>"),
-            (@"\.", "<<<DOT>>>"),
-            (@"\|", "<<<PIPE>>>"),
-            (@"\$", "<<<DOLLAR>>>"),
-            (@"\+", "<<<PLUS>>>"),
-            (@"\(", "<<<OPENING>>>"),
-            (@"\)", "<<<CLOSING>>>"),
-            (@"\[", "<<<OPENING_BRACKET>>>"),
-            (@"\]", "<<<CLOSING_BRACKET>>>"),
-            (@"\!", "<<<EXCLAMATION>>>")
+            // Regex escaped characters
+            (" ", "<<<SPACE>>>", @"\ "),
+            ("^", "<<<CARET>>>", @"\^"),
+            (".", "<<<DOT>>>", @"\."),
+            ("|", "<<<PIPE>>>", @"\|"),
+            ("$", "<<<DOLLAR>>>", @"\$"),
+            ("+", "<<<PLUS>>>", @"\+"),
+            ("(", "<<<OPEN>>>", @"\("),
+            (")", "<<<CLOSE>>>", @"\)"),
+            ("{", "<<<OPEN_BRACE>>>", @"\{"),
+            ("}", "<<<CLOSE_BRACE>>>", @"\}"),
+
+            // .gitignore escpaed characters
+            (@"\*", "<<<STAR>>>", @"\*"),
+            (@"\[", "<<<OPEN_BRACKET>>>", @"\["),
+            (@"\]", "<<<CLOSE_BRACKET>>>", @"\]"),
+            (@"\!", "<<<EXCLAMATION>>>", @"\!"),
+
+            //
+            (@"\", @"\/", @"\/"),
+            (@"/", @"\/", @"\/")
         };
 
-        public GitignoreParser([NotNull] ILogger logger)
+        private readonly ILogger<GitignoreParser> _logger;
+
+        public GitignoreParser([NotNull] ILogger<GitignoreParser> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -42,7 +51,7 @@ namespace FileSync.Filters
 
             if (!File.Exists(absolutePath)) return new List<GitignorePattern>();
 
-            _logger.Verbose($"Parsing .fsignore {absolutePath}...");
+            _logger.LogDebug($"Parsing .fsignore {absolutePath}...");
 
             var lines = File.ReadAllLines(absolutePath);
 
@@ -51,7 +60,7 @@ namespace FileSync.Filters
                 .Where(p => p.Expression != null)
                 .ToArray();
 
-            _logger.Verbose($"Parsed .fsignore {absolutePath}.");
+            _logger.LogDebug($"Parsed .fsignore {absolutePath}.");
 
             return patterns;
         }
@@ -67,7 +76,7 @@ namespace FileSync.Filters
         public GitignorePattern ParseLine(string line, string parentRelativePath = "")
         {
             var pattern = new GitignorePattern();
-            
+
             line = line.Trim();
 
             #region RULE : A blank line matches no files.
@@ -113,7 +122,7 @@ namespace FileSync.Filters
         public string ConvertToRegexString(string line)
         {
             line = Santinize(line);
-            
+
             if (line == @"\/" ||
                 line == Asterisk ||
                 line == Asterisk + Asterisk) return null;
@@ -174,8 +183,8 @@ namespace FileSync.Filters
 
             #region RULE : "line" matches both File or Directory 
 
-            if (!line.StartsWith("^")) line = "^" + @"(?:[\S\s]+\/)*" + line;
-            if (!line.EndsWith("$")) line = line + @"(?:\/[\S\s]+)*" + "$";
+            if (!line.StartsWith("^")) line = "^" + @"(?:[\S\s]+\/)*?" + line;
+            if (!line.EndsWith("$")) line = line + @"(?:\/[\S\s]+)*?" + "$";
 
             #endregion
 
@@ -186,21 +195,17 @@ namespace FileSync.Filters
             #endregion
 
             line = Desantinize(line);
-            
+
             return line;
         }
 
         private string Santinize(string line)
         {
-            line = line.Replace("*", Asterisk);
-
             // Preserve user-escaped characters
-            foreach (var (c1, c2) in _availableUserEscapedCharacters) line = line.Replace(c1, c2);
+            foreach (var (character, tempCharacter, _) in _escapedCharacters) line = line.Replace(character, tempCharacter);
 
-            // Escape special characters for processing
-            line = line.Replace(".", @"\.");
-            line = line.Replace("/", @"\/");
-            line = line.Replace("$", @"\$");
+            // Escape characters
+            line = line.Replace("*", Asterisk);
 
             return line;
         }
@@ -209,8 +214,8 @@ namespace FileSync.Filters
         {
             line = line.Replace(Asterisk, "*");
 
-            // Put back user-escaped characters
-            foreach (var (c1, c2) in _availableUserEscapedCharacters) line = line.Replace(c2, c1);
+            // Put back escaped characters
+            foreach (var (_, tempCharacter, escapedCharacter) in _escapedCharacters) line = line.Replace(tempCharacter, escapedCharacter);
 
             return line;
         }

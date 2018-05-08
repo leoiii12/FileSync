@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Operations
 {
@@ -9,9 +9,9 @@ namespace FileSync.Operations
     {
         private const string TempExtenstion = ".fsrmd"; // "FileSync Removed"
 
-        private readonly ILogger _logger;
+        private readonly ILogger<SimpleFileDeleter> _logger;
 
-        public SimpleFileDeleter([NotNull] ILogger logger)
+        public SimpleFileDeleter([NotNull] ILogger<SimpleFileDeleter> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -38,7 +38,7 @@ namespace FileSync.Operations
             }
             catch (Exception e)
             {
-                _logger.Error(e.GetBaseException().ToString());
+                _logger.LogError(e.GetBaseException().ToString());
             }
         }
     }

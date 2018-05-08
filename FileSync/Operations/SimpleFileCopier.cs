@@ -2,18 +2,18 @@
 using System.IO;
 using FileSync.Comparers;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Operations
 {
     public class SimpleFileCopier : IFileCopier
     {
         private const string TempExtenstion = ".fstmp"; // "FileSync Temp"
-
-        private readonly ILogger _logger;
         private readonly IFileComparer _fileComparer;
 
-        public SimpleFileCopier([NotNull] ILogger logger, [NotNull] IFileComparer fileComparer)
+        private readonly ILogger<SimpleFileCopier> _logger;
+
+        public SimpleFileCopier([NotNull] ILogger<SimpleFileCopier> logger, [NotNull] IFileComparer fileComparer)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _fileComparer = fileComparer ?? throw new ArgumentNullException(nameof(fileComparer));
@@ -43,7 +43,7 @@ namespace FileSync.Operations
             }
             catch (Exception e)
             {
-                _logger.Error(e.GetBaseException().ToString());
+                _logger.LogError(e.GetBaseException().ToString());
             }
         }
 
@@ -52,7 +52,7 @@ namespace FileSync.Operations
             if (Directory.Exists(directoryName)) return;
 
             Directory.CreateDirectory(directoryName);
-            _logger.Verbose($"The directory name \"{directoryName}\" does not exist. Created it.");
+            _logger.LogDebug($"The directory name \"{directoryName}\" does not exist. Created it.");
         }
     }
 }

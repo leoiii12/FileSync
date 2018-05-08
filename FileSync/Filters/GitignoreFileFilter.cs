@@ -2,15 +2,14 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using JetBrains.Annotations;
 
 namespace FileSync.Filters
 {
     public class GitignoreFileFilter : IFileFilter
     {
-        private readonly GitignoreParser _gitignoreParser;
         private readonly ConcurrentDictionary<string, bool> _directoryResultDictionary = new ConcurrentDictionary<string, bool>();
+        private readonly GitignoreParser _gitignoreParser;
 
         [CanBeNull] private IReadOnlyList<GitignorePattern> _gitignorePatterns;
 
@@ -36,11 +35,6 @@ namespace FileSync.Filters
             _gitignorePatterns = patterns;
         }
 
-        public void SetPatterns(IReadOnlyList<string> patterns)
-        {
-            _gitignorePatterns = _gitignoreParser.ParseLines(patterns);
-        }
-
         public bool Filterd(string path)
         {
             if (_gitignorePatterns == null)
@@ -57,6 +51,11 @@ namespace FileSync.Filters
                 return !IsIncluded(path);
 
             return !IsIncluded(parentPath) || !IsIncluded(path);
+        }
+
+        public void SetPatterns(IReadOnlyList<string> lines)
+        {
+            _gitignorePatterns = _gitignoreParser.ParseLines(lines);
         }
 
         private bool IsIncluded(string path)
@@ -89,10 +88,7 @@ namespace FileSync.Filters
 
             var isIncluded = lastIncludedIndex > lastExcludedIndex;
 
-            if (isDirectory)
-            {
-                _directoryResultDictionary.TryAdd(path, isIncluded);
-            }
+            if (isDirectory) _directoryResultDictionary.TryAdd(path, isIncluded);
 
             return isIncluded;
         }

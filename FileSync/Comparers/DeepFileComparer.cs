@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
 {
@@ -11,9 +11,9 @@ namespace FileSync.Comparers
     {
         private const int BufferSize = 1024 * 1024 * 10;
 
-        private readonly ILogger _logger;
+        private readonly ILogger<DeepFileComparer> _logger;
 
-        public DeepFileComparer([NotNull] ILogger logger)
+        public DeepFileComparer([NotNull] ILogger<DeepFileComparer> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -33,12 +33,12 @@ namespace FileSync.Comparers
             }
             catch (Exception e)
             {
-                _logger.Error(e.GetBaseException().ToString());
+                _logger.LogError(e.GetBaseException().ToString());
             }
 
             sw.Stop();
 
-            if (sw.Elapsed.Milliseconds > 500) _logger.Warning($"Compute hash for \"{srcFilePath}\", elapsed = {sw.Elapsed.Milliseconds} ms.");
+            if (sw.Elapsed.Milliseconds > 500) _logger.LogInformation($"Compute hash for \"{srcFilePath}\", elapsed = {sw.Elapsed.Milliseconds} ms.");
 
             return isEqualFile;
         }

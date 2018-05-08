@@ -4,20 +4,20 @@ using System.IO;
 using System.Linq;
 using FileSync.Filters;
 using JetBrains.Annotations;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
 {
     public class DirectoryStructureComparer : IDirectoryStructureComparer
     {
         private readonly IFileFilter _fileFilter;
-        private readonly ILogger _logger;
+        private readonly ILogger<DirectoryStructureComparer> _logger;
 
         private string[] _addingFiles;
         private string[] _files;
         private string[] _removingFiles;
 
-        public DirectoryStructureComparer([NotNull] ILogger logger, [NotNull] IFileFilter fileFilter)
+        public DirectoryStructureComparer([NotNull] ILogger<DirectoryStructureComparer> logger, [NotNull] IFileFilter fileFilter)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _fileFilter = fileFilter ?? throw new ArgumentNullException(nameof(fileFilter));
@@ -28,7 +28,7 @@ namespace FileSync.Comparers
             if (src == null) throw new ArgumentNullException(nameof(src));
             if (dest == null) throw new ArgumentNullException(nameof(dest));
 
-            _logger.Verbose("Computing the directory structure...");
+            _logger.LogDebug("Computing the directory structure...");
 
             var srcFilePaths = Directory.EnumerateFiles(src, "*.*", SearchOption.AllDirectories);
             var destFilePaths = Directory.EnumerateFiles(dest, "*.*", SearchOption.AllDirectories);
@@ -44,13 +44,13 @@ namespace FileSync.Comparers
                 .Where(sfp => !_fileFilter.Filterd(sfp))
                 .ToHashSet();
 
-            _logger.Verbose("Computed the directory structure...");
+            _logger.LogDebug("Computed the directory structure...");
 
             _addingFiles = srcFiles.Except(destFiles).ToArray();
             _removingFiles = destFiles.Except(srcFiles).ToArray();
             _files = srcFiles.Where(sf => destFiles.Contains(sf)).ToArray();
 
-            _logger.Information($"AddingFiles = {_addingFiles.Length}, RemovingFiles = {_removingFiles.Length}, Files = {_files.Length}");
+            _logger.LogInformation($"AddingFiles = {_addingFiles.Length}, RemovingFiles = {_removingFiles.Length}, Files = {_files.Length}");
 
             return this;
         }

@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Autofac;
+using Autofac.Extensions.DependencyInjection;
 using FileSync.Comparers;
 using FileSync.FileWatchers;
 using FileSync.Filters;
 using FileSync.Operations;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
+using Serilog.Sinks.SystemConsole.Themes;
 
 namespace FileSync
 {
@@ -16,21 +19,44 @@ namespace FileSync
     {
         private static readonly ManualResetEvent QuitEvent = new ManualResetEvent(false);
 
-        public static IContainer Container { get; set; }
+        private static IAppConfig AppConfig { get; set; }
 
         private static void Main(string[] args)
         {
-            var appConfig = new AppConfig().Initialize();
+            #region Configure Services
 
-            var logger = new LoggerConfiguration()
-                .MinimumLevel.Verbose()
-                .WriteTo.File(appConfig.Log)
-                .WriteTo.Console(LogEventLevel.Information)
-                .CreateLogger();
+            AppConfig = new AppConfig().Initialize();
 
-            AppDomain.CurrentDomain.UnhandledException += (sender, eventArgs) =>
+            var serviceCollection = new ServiceCollection();
+            var serviceProvider = ConfigureServices(serviceCollection);
+
+            #endregion
+
+            Run(serviceProvider);
+
+            Console.CancelKeyPress += (sender, eArgs) =>
             {
-                switch (eventArgs.ExceptionObject)
+                eArgs.Cancel = true;
+                QuitEvent.Set();
+            };
+
+            QuitEvent.WaitOne();
+        }
+
+        private static void Run(IServiceProvider serviceProvider)
+        {
+            try
+            {
+                var fileSynchronizer = serviceProvider.GetService<FileSynchronizer>();
+
+                fileSynchronizer.Sync();
+                fileSynchronizer.WatchAndSync();
+            }
+            catch (Exception exception)
+            {
+                var logger = serviceProvider.GetService<ILogger<Program>>();
+
+                switch (exception)
                 {
                     case AggregateException e:
                         var exceptionGroups = e.InnerExceptions.GroupBy(ie => ie.Message).ToArray();
@@ -40,54 +66,41 @@ namespace FileSync
                             var message = group.Key;
                             var baseExceptions = string.Join(", ", group.Select(a => a.GetBaseException().ToString()));
 
-                            logger.Verbose(message);
-                            logger.Verbose(baseExceptions);
+                            logger.LogDebug(message);
+                            logger.LogDebug(baseExceptions);
                         }
 
-                        logger.Fatal(string.Join(", ", exceptionGroups.Select(a => a.Key).ToArray()));
+                        logger.LogCritical(string.Join(", ", exceptionGroups.Select(a => a.Key).ToArray()));
                         break;
                     case Exception e:
-                        logger.Fatal(e.GetBaseException().ToString());
-                        break;
-                    default:
-                        logger.Fatal(eventArgs.ExceptionObject.ToString());
+                        logger.LogCritical(e.GetBaseException().ToString());
                         break;
                 }
-
-                Environment.Exit(-1);
-            };
-
-            Initialize(appConfig, logger);
-
-            Console.CancelKeyPress += (sender, eArgs) =>
-            {
-                eArgs.Cancel = true;
-                QuitEvent.Set();
-            };
-
-            Task.Run(() =>
-            {
-                FileSynchronizer fileSynchronizer;
-
-                using (var scope = Container.BeginLifetimeScope())
-                {
-                    fileSynchronizer = scope.Resolve<FileSynchronizer>();
-                }
-
-                fileSynchronizer.Sync();
-                fileSynchronizer.WatchAndSync();
-            });
-
-            QuitEvent.WaitOne();
+            }
         }
 
-        private static void Initialize(IAppConfig appConfig, ILogger logger)
+        private static IServiceProvider ConfigureServices(IServiceCollection services)
         {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.File(AppConfig.Log)
+                .WriteTo.Console(LogEventLevel.Information, theme: AnsiConsoleTheme.Grayscale)
+                .CreateLogger();
+
+            services.AddLogging(loggingBuilder =>
+                loggingBuilder.AddSerilog(dispose: true));
+
             var builder = new ContainerBuilder();
 
-            builder.RegisterInstance(appConfig).As<IAppConfig>();
+            builder.Populate(services);
 
-            builder.RegisterInstance(logger).As<ILogger>();
+            // builder.RegisterModule(new LogRequestsModule());
+
+            #region AppConfig
+
+            builder.RegisterInstance(AppConfig).As<IAppConfig>();
+
+            #endregion
 
             #region FileWatchers
 
@@ -107,7 +120,7 @@ namespace FileSync
 
             builder.RegisterType<DirectoryStructureComparer>().As<IDirectoryStructureComparer>();
 
-            if (appConfig.UseDeepFileComparer)
+            if (AppConfig.UseDeepFileComparer)
                 builder.RegisterType<DeepFileComparer>().As<IFileComparer>();
             else
                 builder.RegisterType<ShallowFileComparer>().As<IFileComparer>();
@@ -126,7 +139,10 @@ namespace FileSync
 
             builder.RegisterType<FileSynchronizer>();
 
-            Container = builder.Build();
+            var container = builder.Build();
+
+            // Create the IServiceProvider based on the container.
+            return new AutofacServiceProvider(container);
         }
     }
 }

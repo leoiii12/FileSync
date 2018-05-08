@@ -8,9 +8,9 @@
             DestinationPath = destinationPath;
         }
 
-        public string SourcePath { get; private set; }
+        public string SourcePath { get; }
 
-        public string DestinationPath { get; private set; }
+        public string DestinationPath { get; }
 
         public bool HasSynced { get; private set; }
 
