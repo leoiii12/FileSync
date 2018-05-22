@@ -1,9 +1,9 @@
-﻿using JetBrains.Annotations;
+﻿using FileSync.VirtualFileSystem;
 
 namespace FileSync.Operations
 {
     public interface IFileDeleter
     {
-        void Delete([NotNull] string filePath);
+        void Delete(IFileSystem fileSystem, string filePath);
     }
 }

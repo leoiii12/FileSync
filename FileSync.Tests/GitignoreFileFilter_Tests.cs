@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using FileSync.Filters;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -7,11 +8,11 @@ namespace FileSync.Tests
 {
     internal class AppConfig : IAppConfig
     {
-        public string Src { get; } = "";
-        public string Dest { get; } = "";
+        public IFileSystem Src { get; } = null;
+        public IFileSystem Dest { get; } = null;
         public string Log { get; } = "";
-        public bool UseDeepFileComparer { get; } = false;
-        public bool KeepRemovedFilesInDest { get; } = false;
+        public bool UseDeepFileComparer { get; }
+        public bool KeepRemovedFilesInDest { get; }
     }
 
     public class GitignoreFileFilter_Tests

@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
@@ -13,13 +13,15 @@ namespace FileSync.Comparers
 
         private readonly ILogger<DeepFileComparer> _logger;
 
-        public DeepFileComparer([NotNull] ILogger<DeepFileComparer> logger)
+        public DeepFileComparer(ILogger<DeepFileComparer> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public bool GetIsEqualFile(string srcFilePath, string destFilePath)
+        public bool GetIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
+            if (srcFileSystem == null) throw new ArgumentNullException(nameof(srcFileSystem));
+            if (destFileSystem == null) throw new ArgumentNullException(nameof(destFileSystem));
             if (srcFilePath == null) throw new ArgumentNullException(nameof(srcFilePath));
             if (destFilePath == null) throw new ArgumentNullException(nameof(destFilePath));
 
@@ -29,7 +31,7 @@ namespace FileSync.Comparers
 
             try
             {
-                isEqualFile = DeepFileCompare(srcFilePath, destFilePath);
+                isEqualFile = DeepFileCompare(srcFileSystem, destFileSystem, srcFilePath, destFilePath);
             }
             catch (Exception e)
             {
@@ -43,17 +45,22 @@ namespace FileSync.Comparers
             return isEqualFile;
         }
 
-        public void EnsureIsEqualFile(string srcFilePath, string destFilePath)
+        public void EnsureIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string filePath)
         {
-            if (!GetIsEqualFile(srcFilePath, destFilePath)) throw new Exception($"The dest file \"{destFilePath}\" is different from the src file \"{srcFilePath}\".");
+            EnsureIsEqualFile(srcFileSystem, destFileSystem, filePath, filePath);
         }
 
-        private static bool DeepFileCompare(string srcFilePath, string destFilePath)
+        public void EnsureIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
+        {
+            if (!GetIsEqualFile(srcFileSystem, destFileSystem, srcFilePath, destFilePath)) throw new Exception($"The dest file \"{destFilePath}\" is different from the src file \"{srcFilePath}\".");
+        }
+
+        private static bool DeepFileCompare(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
             bool isEqual;
 
-            using (var srcFileStream = new FileStream(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
-            using (var destFileStream = new FileStream(destFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
+            using (var srcFileStream = srcFileSystem.OpenFile(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
+            using (var destFileStream = destFileSystem.OpenFile(destFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
             {
                 isEqual = srcFileStream.Length == destFileStream.Length && IncrementallyCompare(srcFileStream, destFileStream);
             }

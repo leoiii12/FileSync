@@ -1,12 +1,12 @@
-﻿using JetBrains.Annotations;
+﻿using FileSync.VirtualFileSystem;
 
 namespace FileSync
 {
     public interface IAppConfig
     {
-        [NotNull] string Src { get; }
-        [NotNull] string Dest { get; }
-        [NotNull] string Log { get; }
+        IFileSystem Src { get; }
+        IFileSystem Dest { get; }
+        string Log { get; }
         bool UseDeepFileComparer { get; }
         bool KeepRemovedFilesInDest { get; }
     }

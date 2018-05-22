@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
@@ -9,18 +9,18 @@ namespace FileSync.Comparers
     {
         private readonly ILogger<ShallowFileComparer> _logger;
 
-        public ShallowFileComparer([NotNull] ILogger<ShallowFileComparer> logger)
+        public ShallowFileComparer(ILogger<ShallowFileComparer> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public bool GetIsEqualFile(string srcFilePath, string destFilePath)
+        public bool GetIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
             var isEqualFile = true;
 
             try
             {
-                isEqualFile = ShallowFileCompare(srcFilePath, destFilePath);
+                isEqualFile = ShallowFileCompare(srcFileSystem, destFileSystem, srcFilePath, destFilePath);
             }
             catch (Exception e)
             {
@@ -30,35 +30,35 @@ namespace FileSync.Comparers
             return isEqualFile;
         }
 
-        public void EnsureIsEqualFile(string srcFilePath, string destFilePath)
+        public void EnsureIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string filePath)
         {
-            if (!GetIsEqualFile(srcFilePath, destFilePath)) throw new Exception($"The dest file \"{destFilePath}\" is different from the src file \"{srcFilePath}\".");
+            EnsureIsEqualFile(srcFileSystem, destFileSystem, filePath, filePath);
         }
 
-        private static bool ShallowFileCompare(string srcFilePath, string destFilePath)
+        public void EnsureIsEqualFile(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
-            var srcFileInfo = new FileInfo(srcFilePath);
-            var destFileInfo = new FileInfo(destFilePath);
+            if (!GetIsEqualFile(srcFileSystem, destFileSystem, srcFilePath, destFilePath)) throw new Exception($"The dest file \"{destFilePath}\" is different from the src file \"{srcFilePath}\".");
+        }
 
-            bool isEqualFile;
+        private static bool ShallowFileCompare(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
+        {
+            var srcFileInfo = srcFileSystem.GetFileInfo(srcFilePath);
+            var destFileInfo = destFileSystem.GetFileInfo(destFilePath);
+
+            var srcFileLength = srcFileInfo.Length;
 
             if (srcFileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
             {
-                long length;
-                using (var fileStream = File.Open(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var srcFileStream = srcFileSystem.OpenFile(srcFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    length = fileStream.Length;
+                    srcFileLength = srcFileStream.Length;
                 }
-
-                isEqualFile = length == destFileInfo.Length;
-            }
-            else
-            {
-                isEqualFile = srcFileInfo.Length == destFileInfo.Length &&
-                              Math.Abs((srcFileInfo.LastWriteTimeUtc - destFileInfo.LastWriteTimeUtc).TotalMilliseconds) < 2000;
             }
 
-            return isEqualFile;
+            // Different lengths -> not equal
+            if (srcFileLength != destFileInfo.Length) return false;
+
+            return true;
         }
     }
 }

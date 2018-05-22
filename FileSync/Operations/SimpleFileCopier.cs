@@ -1,26 +1,31 @@
 ﻿using System;
 using System.IO;
 using FileSync.Comparers;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Operations
 {
     public class SimpleFileCopier : IFileCopier
     {
-        private const string TempExtenstion = ".fstmp"; // "FileSync Temp"
-        private readonly IFileComparer _fileComparer;
+        /// <summary>
+        ///     "FileSync Temp"
+        /// </summary>
+        private const string TempExtenstion = ".fstmp";
 
+        private readonly IFileComparer _fileComparer;
         private readonly ILogger<SimpleFileCopier> _logger;
 
-        public SimpleFileCopier([NotNull] ILogger<SimpleFileCopier> logger, [NotNull] IFileComparer fileComparer)
+        public SimpleFileCopier(ILogger<SimpleFileCopier> logger, IFileComparer fileComparer)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _fileComparer = fileComparer ?? throw new ArgumentNullException(nameof(fileComparer));
         }
 
-        public void Copy(string srcFilePath, string destFilePath)
+        public void Copy(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
+            if (srcFileSystem == null) throw new ArgumentNullException(nameof(srcFileSystem));
+            if (destFileSystem == null) throw new ArgumentNullException(nameof(destFileSystem));
             if (srcFilePath == null) throw new ArgumentNullException(nameof(srcFilePath));
             if (destFilePath == null) throw new ArgumentNullException(nameof(destFilePath));
 
@@ -28,31 +33,22 @@ namespace FileSync.Operations
 
             try
             {
-                var directoryName = Path.GetDirectoryName(destFilePath);
-                EnsureDirectory(directoryName);
+                var tempFilePath = srcFilePath + TempExtenstion;
 
-                var tempFilePath = destFilePath + TempExtenstion;
+                destFileSystem.CreateDirectory(Path.GetDirectoryName(srcFilePath));
 
-                if (File.Exists(tempFilePath))
-                    File.Delete(tempFilePath);
+                srcFileSystem.CopyFile(srcFilePath, destFileSystem, tempFilePath, true);
+                _logger.LogTrace($"Copied file from source {srcFilePath} to temp {tempFilePath}.");
 
-                File.Copy(srcFilePath, tempFilePath);
-                File.Move(tempFilePath, destFilePath);
+                destFileSystem.MoveFile(tempFilePath, destFilePath, true);
+                _logger.LogTrace($"Moved file from source {srcFilePath} to dest {destFilePath} successfully.");
 
-                _fileComparer.EnsureIsEqualFile(srcFilePath, destFilePath);
+                _fileComparer.EnsureIsEqualFile(srcFileSystem, destFileSystem, srcFilePath, destFilePath);
             }
             catch (Exception e)
             {
                 _logger.LogError(e.GetBaseException().ToString());
             }
-        }
-
-        private void EnsureDirectory(string directoryName)
-        {
-            if (Directory.Exists(directoryName)) return;
-
-            Directory.CreateDirectory(directoryName);
-            _logger.LogDebug($"The directory name \"{directoryName}\" does not exist. Created it.");
         }
     }
 }

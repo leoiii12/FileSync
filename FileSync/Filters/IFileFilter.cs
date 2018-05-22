@@ -1,9 +1,7 @@
-﻿using JetBrains.Annotations;
-
-namespace FileSync.Filters
+﻿namespace FileSync.Filters
 {
     public interface IFileFilter
     {
-        bool Filterd([NotNull] string path);
+        bool Filterd(string path);
     }
 }

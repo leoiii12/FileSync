@@ -1,9 +1,9 @@
-﻿using JetBrains.Annotations;
+﻿using FileSync.VirtualFileSystem;
 
 namespace FileSync.Operations
 {
     public interface IFileMerger
     {
-        void Merge([NotNull] string srcFilePath, [NotNull] string destFilePath);
+        void Merge(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath);
     }
 }

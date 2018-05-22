@@ -1,22 +1,25 @@
 ﻿using System;
 using System.IO;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Operations
 {
     public class SimpleFileDeleter : IFileDeleter
     {
-        private const string TempExtenstion = ".fsrmd"; // "FileSync Removed"
+        /// <summary>
+        ///     "FileSync Removed"
+        /// </summary>
+        private const string TempExtenstion = ".fsrmd";
 
         private readonly ILogger<SimpleFileDeleter> _logger;
 
-        public SimpleFileDeleter([NotNull] ILogger<SimpleFileDeleter> logger)
+        public SimpleFileDeleter(ILogger<SimpleFileDeleter> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public void Delete(string filePath)
+        public void Delete(IFileSystem fileSystem, string filePath)
         {
             if (!File.Exists(filePath)) return;
 
@@ -25,15 +28,18 @@ namespace FileSync.Operations
                 var originalExtension = Path.GetExtension(filePath);
                 if (originalExtension == TempExtenstion)
                 {
-                    File.Delete(filePath);
+                    fileSystem.DeleteFile(filePath);
                 }
                 else
                 {
                     var newExtension = originalExtension + TempExtenstion;
                     var newPath = Path.ChangeExtension(filePath, newExtension);
 
-                    File.Move(filePath, newPath);
-                    File.Delete(newPath);
+                    fileSystem.MoveFile(filePath, newPath, true);
+                    _logger.LogTrace($"Moved file {filePath} to temp place {newPath}.");
+
+                    fileSystem.DeleteFile(filePath);
+                    _logger.LogTrace($"Deleted file {filePath} successfully.");
                 }
             }
             catch (Exception e)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Filters
@@ -40,12 +39,12 @@ namespace FileSync.Filters
 
         private readonly ILogger<GitignoreParser> _logger;
 
-        public GitignoreParser([NotNull] ILogger<GitignoreParser> logger)
+        public GitignoreParser(ILogger<GitignoreParser> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public IReadOnlyList<GitignorePattern> ParseFile([NotNull] string absolutePath, string parentRelativePath = "")
+        public IReadOnlyList<GitignorePattern> ParseFile(string absolutePath, string parentRelativePath = "")
         {
             if (absolutePath == null) throw new ArgumentNullException(nameof(absolutePath));
 
@@ -65,7 +64,7 @@ namespace FileSync.Filters
             return patterns;
         }
 
-        public IReadOnlyList<GitignorePattern> ParseLines([NotNull] IReadOnlyList<string> lines, string parentRelativePath = "")
+        public IReadOnlyList<GitignorePattern> ParseLines(IReadOnlyList<string> lines, string parentRelativePath = "")
         {
             return lines
                 .Select(l => ParseLine(l, parentRelativePath))

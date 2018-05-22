@@ -1,11 +1,11 @@
 ﻿using System.Collections.Generic;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 
 namespace FileSync.Comparers
 {
     public interface IDirectoryStructureComparer
     {
-        DirectoryStructureComparer Compare([NotNull] string src, [NotNull] string dest);
+        DirectoryStructureComparer Compare(IFileSystem srcFileSystem, IFileSystem destFileSystem);
         ICollection<Pair> ToPairs();
     }
 }

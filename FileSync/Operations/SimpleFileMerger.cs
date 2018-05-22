@@ -1,5 +1,5 @@
 ﻿using System;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 
 namespace FileSync.Operations
 {
@@ -8,16 +8,16 @@ namespace FileSync.Operations
         private readonly IFileCopier _fileCopier;
         private readonly IFileDeleter _fileDeleter;
 
-        public SimpleFileMerger([NotNull] IFileCopier fileCopier, [NotNull] IFileDeleter fileDeleter)
+        public SimpleFileMerger(IFileCopier fileCopier, IFileDeleter fileDeleter)
         {
             _fileCopier = fileCopier ?? throw new ArgumentNullException(nameof(fileCopier));
             _fileDeleter = fileDeleter ?? throw new ArgumentNullException(nameof(fileDeleter));
         }
 
-        public void Merge(string srcFilePath, string destFilePath)
+        public void Merge(IFileSystem srcFileSystem, IFileSystem destFileSystem, string srcFilePath, string destFilePath)
         {
-            _fileDeleter.Delete(destFilePath);
-            _fileCopier.Copy(srcFilePath, destFilePath);
+            _fileDeleter.Delete(destFileSystem, destFilePath);
+            _fileCopier.Copy(srcFileSystem, destFileSystem, srcFilePath, destFilePath);
         }
     }
 }

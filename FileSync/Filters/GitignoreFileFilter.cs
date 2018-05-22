@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using JetBrains.Annotations;
+using System.Linq;
 
 namespace FileSync.Filters
 {
@@ -11,24 +11,23 @@ namespace FileSync.Filters
         private readonly ConcurrentDictionary<string, bool> _directoryResultDictionary = new ConcurrentDictionary<string, bool>();
         private readonly GitignoreParser _gitignoreParser;
 
-        [CanBeNull] private IReadOnlyList<GitignorePattern> _gitignorePatterns;
+        private IReadOnlyList<GitignorePattern> _gitignorePatterns;
 
-        public GitignoreFileFilter([NotNull] IAppConfig appConfig, [NotNull] GitignoreParser gitignoreParser)
+        public GitignoreFileFilter(IAppConfig appConfig, GitignoreParser gitignoreParser)
         {
             _gitignoreParser = gitignoreParser ?? throw new ArgumentNullException(nameof(gitignoreParser));
 
             var patterns = new List<GitignorePattern>();
 
-            if (Directory.Exists(appConfig.Src))
+            if (appConfig.Src != null)
             {
-                var fsignorePaths = Directory.GetFiles(appConfig.Src, ".fsignore", SearchOption.AllDirectories);
+                var fsignorePaths = appConfig.Src.EnumerateFiles("/", ".fsignore").ToArray();
 
-                foreach (var absolutePath in fsignorePaths)
+                foreach (var relativePath in fsignorePaths)
                 {
-                    var relativePath = Path.GetRelativePath(appConfig.Src, absolutePath);
                     var fsignoreParentRelativePath = relativePath.Substring(0, relativePath.LastIndexOf(".fsignore", StringComparison.Ordinal));
 
-                    patterns.AddRange(_gitignoreParser.ParseFile(absolutePath, fsignoreParentRelativePath));
+                    patterns.AddRange(_gitignoreParser.ParseFile(relativePath, fsignoreParentRelativePath));
                 }
             }
 

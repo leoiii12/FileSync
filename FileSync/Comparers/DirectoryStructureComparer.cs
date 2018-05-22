@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using FileSync.Filters;
-using JetBrains.Annotations;
+using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace FileSync.Comparers
@@ -17,40 +16,37 @@ namespace FileSync.Comparers
         private string[] _files;
         private string[] _removingFiles;
 
-        public DirectoryStructureComparer([NotNull] ILogger<DirectoryStructureComparer> logger, [NotNull] IFileFilter fileFilter)
+        public DirectoryStructureComparer(ILogger<DirectoryStructureComparer> logger, IFileFilter fileFilter)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _fileFilter = fileFilter ?? throw new ArgumentNullException(nameof(fileFilter));
         }
 
-        public DirectoryStructureComparer Compare(string src, string dest)
+        public DirectoryStructureComparer Compare(IFileSystem srcFileSystem, IFileSystem destFileSystem)
         {
-            if (src == null) throw new ArgumentNullException(nameof(src));
-            if (dest == null) throw new ArgumentNullException(nameof(dest));
+            if (srcFileSystem == null) throw new ArgumentNullException(nameof(srcFileSystem));
+            if (destFileSystem == null) throw new ArgumentNullException(nameof(destFileSystem));
 
             _logger.LogDebug("Computing the directory structure...");
 
-            var srcFilePaths = Directory.EnumerateFiles(src, "*.*", SearchOption.AllDirectories);
-            var destFilePaths = Directory.EnumerateFiles(dest, "*.*", SearchOption.AllDirectories);
-
-            var srcFiles = srcFilePaths
+            var srcFilePaths = srcFileSystem
+                .EnumerateFiles()
                 .AsParallel()
-                .Select(sfp => Path.GetRelativePath(src, sfp))
                 .Where(sfp => !_fileFilter.Filterd(sfp))
                 .ToHashSet();
-            var destFiles = destFilePaths
+            var destFilePaths = destFileSystem
+                .EnumerateFiles()
                 .AsParallel()
-                .Select(sfp => Path.GetRelativePath(dest, sfp))
                 .Where(sfp => !_fileFilter.Filterd(sfp))
                 .ToHashSet();
 
             _logger.LogDebug("Computed the directory structure...");
 
-            _addingFiles = srcFiles.Except(destFiles).ToArray();
-            _removingFiles = destFiles.Except(srcFiles).ToArray();
-            _files = srcFiles.Where(sf => destFiles.Contains(sf)).ToArray();
+            _addingFiles = srcFilePaths.Except(destFilePaths).ToArray();
+            _removingFiles = destFilePaths.Except(srcFilePaths).ToArray();
+            _files = srcFilePaths.Where(sf => destFilePaths.Contains(sf)).ToArray();
 
-            _logger.LogInformation($"AddingFiles = {_addingFiles.Length}, RemovingFiles = {_removingFiles.Length}, Files = {_files.Length}");
+            _logger.LogInformation($"AddingFiles = {_addingFiles.Length}, RemovingFiles = {_removingFiles.Length}, Files = {_files.Length}.");
 
             return this;
         }
