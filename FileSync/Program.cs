@@ -4,7 +4,6 @@ using System.Threading;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using FileSync.Comparers;
-using FileSync.FileWatchers;
 using FileSync.Filters;
 using FileSync.Operations;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,12 +98,6 @@ namespace FileSync
             #region AppConfig
 
             builder.RegisterInstance(AppConfig).As<IAppConfig>();
-
-            #endregion
-
-            #region FileWatchers
-
-            builder.RegisterType<FileWatcher>().As<IFileWatcher>();
 
             #endregion
 

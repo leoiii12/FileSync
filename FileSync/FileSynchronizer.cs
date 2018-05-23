@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using FileSync.Comparers;
-using FileSync.FileWatchers;
+using FileSync.Filters;
 using FileSync.Operations;
 using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ namespace FileSync
         private readonly IFileCopier _fileCopier;
         private readonly IFileDeleter _fileDeleter;
         private readonly IFileMerger _fileMerger;
-        private readonly IFileWatcher _fileWatcher;
+        private readonly IFileFilter _fileFilter;
         private readonly ILogger<FileSynchronizer> _logger;
 
         private readonly IFileSystem _destFileSystem;
@@ -31,7 +32,7 @@ namespace FileSync
             IFileCopier fileCopier,
             IFileDeleter fileDeleter,
             IFileMerger fileMerger,
-            IFileWatcher fileWatcher)
+            IFileFilter fileFilter)
         {
             _appConfig = appConfig ?? throw new ArgumentNullException(nameof(appConfig));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -40,7 +41,7 @@ namespace FileSync
             _fileCopier = fileCopier ?? throw new ArgumentNullException(nameof(fileCopier));
             _fileDeleter = fileDeleter ?? throw new ArgumentNullException(nameof(fileDeleter));
             _fileMerger = fileMerger ?? throw new ArgumentNullException(nameof(fileMerger));
-            _fileWatcher = fileWatcher;
+            _fileFilter = fileFilter;
 
             _srcFileSystem = _appConfig.Src;
             _destFileSystem = _appConfig.Dest;
@@ -92,13 +93,16 @@ namespace FileSync
 
         public void WatchAndSync()
         {
-            // TODO
-            /*
-             _fileWatcher.Watch(_srcFileSystem);
-            _fileWatcher.Changes
-                .Throttle(TimeSpan.FromSeconds(10))
-                .Subscribe(e => { Sync(); });
-                */
+            _srcFileSystem
+                .Watch()
+                .Where(e => !_fileFilter.Filterd(e.Name))
+                .Throttle(TimeSpan.FromSeconds(1))
+                .Subscribe(e =>
+                {
+                    _logger.LogTrace("File changes are detected.");
+
+                    Sync();
+                });
         }
 
         private void Delete(string relativeDestFilePath)

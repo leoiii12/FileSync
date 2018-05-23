@@ -1,7 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Security.Cryptography;
 using FileSync.VirtualFileSystem;
 using Microsoft.Extensions.Logging;
+using Serilog.Parsing;
 
 namespace FileSync.Operations
 {
@@ -21,22 +23,20 @@ namespace FileSync.Operations
 
         public void Delete(IFileSystem fileSystem, string filePath)
         {
-            if (!File.Exists(filePath)) return;
+            if (!fileSystem.FileExists(filePath)) return;
 
             try
             {
-                var originalExtension = Path.GetExtension(filePath);
-                if (originalExtension == TempExtenstion)
+                if (Path.GetExtension(filePath) == TempExtenstion)
                 {
                     fileSystem.DeleteFile(filePath);
                 }
                 else
                 {
-                    var newExtension = originalExtension + TempExtenstion;
-                    var newPath = Path.ChangeExtension(filePath, newExtension);
+                    var tempFilePath = filePath + TempExtenstion;
 
-                    fileSystem.MoveFile(filePath, newPath, true);
-                    _logger.LogTrace($"Moved file {filePath} to temp place {newPath}.");
+                    fileSystem.MoveFile(filePath, tempFilePath, true);
+                    _logger.LogTrace($"Moved file {filePath} to temp place {tempFilePath}.");
 
                     fileSystem.DeleteFile(filePath);
                     _logger.LogTrace($"Deleted file {filePath} successfully.");

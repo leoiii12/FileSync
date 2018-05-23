@@ -44,22 +44,26 @@ namespace FileSync.Filters
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public IReadOnlyList<GitignorePattern> ParseFile(string absolutePath, string parentRelativePath = "")
+        public IReadOnlyList<GitignorePattern> ParseFile(FileStream fileStream, string parentRelativePath = "")
         {
-            if (absolutePath == null) throw new ArgumentNullException(nameof(absolutePath));
+            if (fileStream == null) throw new ArgumentNullException(nameof(fileStream));
 
-            if (!File.Exists(absolutePath)) return new List<GitignorePattern>();
+            if (fileStream.CanRead == false) return new List<GitignorePattern>();
 
-            _logger.LogDebug($"Parsing .fsignore {absolutePath}...");
+            _logger.LogDebug($"Parsing .fsignore {fileStream.Name}...");
 
-            var lines = File.ReadAllLines(absolutePath);
+            string[] lines;
+            using (var reader = new StreamReader(fileStream))
+            {
+                lines = reader.ReadToEnd().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+            }
 
             var patterns = lines
                 .Select(l => ParseLine(l, parentRelativePath))
                 .Where(p => p.Expression != null)
                 .ToArray();
 
-            _logger.LogDebug($"Parsed .fsignore {absolutePath}.");
+            _logger.LogDebug($"Parsed .fsignore {fileStream.Name}.");
 
             return patterns;
         }

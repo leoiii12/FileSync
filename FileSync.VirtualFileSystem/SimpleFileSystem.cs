@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 
 namespace FileSync.VirtualFileSystem
 {
@@ -118,6 +120,36 @@ namespace FileSync.VirtualFileSystem
             {
                 srcFileStream.CopyTo(destFileStream);
             }
+        }
+
+        public IObservable<FileSystemEventArgs> Watch(string vfsPath)
+        {
+            var actualPath = GetActualPath(vfsPath); 
+                
+            var watcher = new FileSystemWatcher
+            {
+                Path = actualPath,
+                Filter = "*.*",
+                EnableRaisingEvents = true,
+                IncludeSubdirectories = true
+            };
+
+            FileSystemEventArgs Selector(EventPattern<FileSystemEventArgs> pattern)
+            {
+                var e = pattern.EventArgs;
+
+                return e;
+            }
+
+            var observables = new List<IObservable<FileSystemEventArgs>>
+            {
+                Observable.FromEventPattern<FileSystemEventArgs>(watcher, "Changed").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(watcher, "Created").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(watcher, "Deleted").Select(Selector),
+                Observable.FromEventPattern<FileSystemEventArgs>(watcher, "Renamed").Select(Selector)
+            };
+
+            return observables.Merge();
         }
 
         public override string ToString()

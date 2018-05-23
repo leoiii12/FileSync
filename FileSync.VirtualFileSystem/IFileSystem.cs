@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace FileSync.VirtualFileSystem
@@ -93,5 +94,7 @@ namespace FileSync.VirtualFileSystem
         void MoveFile(string vfsSrcPath, string vfsDestPath, bool willOverwrite = false);
 
         #endregion
+
+        IObservable<FileSystemEventArgs> Watch(string vfsPath = "/");
     }
 }

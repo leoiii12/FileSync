@@ -27,7 +27,10 @@ namespace FileSync.Filters
                 {
                     var fsignoreParentRelativePath = relativePath.Substring(0, relativePath.LastIndexOf(".fsignore", StringComparison.Ordinal));
 
-                    patterns.AddRange(_gitignoreParser.ParseFile(relativePath, fsignoreParentRelativePath));
+                    using (var file = appConfig.Src.OpenFile(relativePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        patterns.AddRange(_gitignoreParser.ParseFile(file, fsignoreParentRelativePath));
+                    }
                 }
             }
 
